@@ -1,7 +1,6 @@
 using GenAIPlatform.Api.Security;
 using GenAIPlatform.Application.Knowledge.Documents;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace GenAIPlatform.Api;
 

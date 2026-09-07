@@ -1,7 +1,5 @@
 using System.Runtime.ExceptionServices;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Security;
-using GenAIPlatform.Application.Core.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Knowledge.Documents;

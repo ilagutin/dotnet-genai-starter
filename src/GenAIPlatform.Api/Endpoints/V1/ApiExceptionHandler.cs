@@ -1,7 +1,6 @@
 using GenAIPlatform.Application.Core.Errors;
-using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Exceptions;
+using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;

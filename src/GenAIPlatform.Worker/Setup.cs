@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Core.Security;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace GenAIPlatform.Worker;
 

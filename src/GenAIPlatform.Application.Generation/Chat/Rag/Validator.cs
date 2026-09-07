@@ -1,8 +1,6 @@
 using FluentValidation;
-using GenAIPlatform.Application.Knowledge.Embeddings;
-using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using Microsoft.Extensions.Options;
 

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Infrastructure.Embeddings.OpenAi.Dtos;
 

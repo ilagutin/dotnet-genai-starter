@@ -1,8 +1,6 @@
+using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Domain.Observability;
 using GenAIPlatform.Domain.Prompts;
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Generation.Prompts;
 
 namespace GenAIPlatform.Infrastructure.Observability.Logging;
 

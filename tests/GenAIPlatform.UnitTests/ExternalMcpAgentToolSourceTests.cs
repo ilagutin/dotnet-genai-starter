@@ -1,8 +1,8 @@
+using System.Text.Json;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace GenAIPlatform.UnitTests;
 

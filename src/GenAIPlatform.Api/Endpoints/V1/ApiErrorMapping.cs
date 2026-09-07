@@ -1,9 +1,8 @@
 using GenAIPlatform.Application.Core.Errors;
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Knowledge.Retrieval;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Exceptions;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Knowledge.Documents;
+using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Exceptions;
 
 namespace GenAIPlatform.Api;

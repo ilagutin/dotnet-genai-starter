@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Infrastructure.Configuration;

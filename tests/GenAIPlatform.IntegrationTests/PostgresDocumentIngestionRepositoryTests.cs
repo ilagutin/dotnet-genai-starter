@@ -1,10 +1,10 @@
+using System.Runtime.CompilerServices;
 using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Documents;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using System.Runtime.CompilerServices;
 using Testcontainers.PostgreSql;
 
 namespace GenAIPlatform.IntegrationTests;

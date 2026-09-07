@@ -1,6 +1,6 @@
+using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Application.Evaluations.StartRun;
 using GenAIPlatform.Domain.Evaluations;
-using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

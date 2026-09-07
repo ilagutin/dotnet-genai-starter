@@ -1,0 +1,12 @@
+root = true
+
+[*.cs]
+# XML documentation output activates compiler enforcement for IDE0005. Public API documentation
+# completeness is not part of this style-only change, so suppress only CS1591.
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.IDE0005.severity = error
+dotnet_diagnostic.IDE0055.severity = error
+csharp_style_namespace_declarations = file_scoped:error
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+insert_final_newline = true

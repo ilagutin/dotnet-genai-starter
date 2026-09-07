@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;

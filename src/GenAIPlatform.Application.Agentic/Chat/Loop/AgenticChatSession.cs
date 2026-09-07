@@ -1,6 +1,5 @@
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 

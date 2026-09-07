@@ -1,11 +1,9 @@
-using GenAIPlatform.Application.Agentic.Validation;
-using GenAIPlatform.Application.Agentic.Tools;
-using GenAIPlatform.Domain.Agentic;
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Agentic.Tools;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
-using GenAIPlatform.Application.Agentic;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.UnitTests;
 

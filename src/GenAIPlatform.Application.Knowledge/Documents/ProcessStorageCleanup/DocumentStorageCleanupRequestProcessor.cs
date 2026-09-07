@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Core.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

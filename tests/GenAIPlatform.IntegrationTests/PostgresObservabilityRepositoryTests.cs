@@ -1,9 +1,8 @@
 using GenAIPlatform.Application.Usage.GetUsage;
-using GenAIPlatform.Infrastructure.Observability;
 using GenAIPlatform.Domain.Observability;
 using GenAIPlatform.Domain.Prompts;
-using GenAIPlatform.Application.Generation.Prompts;
 using GenAIPlatform.Infrastructure;
+using GenAIPlatform.Infrastructure.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

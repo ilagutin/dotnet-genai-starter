@@ -1,7 +1,6 @@
-using GenAIPlatform.Application.Agentic.Chat;
 using GenAIPlatform.Api.Endpoints.V1.Requests;
+using GenAIPlatform.Application.Agentic.Chat;
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Agentic;
 using GenAIPlatform.Application.Generation.Chat;
 
 namespace GenAIPlatform.Api;

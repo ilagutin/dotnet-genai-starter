@@ -1,5 +1,5 @@
-using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Application.Generation.Chat;
+using GenAIPlatform.Application.Knowledge.Retrieval;
 
 namespace GenAIPlatform.UnitTests;
 

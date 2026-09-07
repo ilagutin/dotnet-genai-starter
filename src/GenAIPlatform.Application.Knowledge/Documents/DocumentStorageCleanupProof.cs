@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-
 namespace GenAIPlatform.Application.Knowledge.Documents;
 
 internal static class DocumentStorageCleanupProof

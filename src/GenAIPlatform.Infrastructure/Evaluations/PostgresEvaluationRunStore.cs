@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Evaluations.StartRun;
-using GenAIPlatform.Application.Evaluations;
 using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Evaluations;

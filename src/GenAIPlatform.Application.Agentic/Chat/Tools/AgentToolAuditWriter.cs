@@ -1,8 +1,8 @@
-using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Tools.Execution;
-using GenAIPlatform.Domain.Agentic;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 

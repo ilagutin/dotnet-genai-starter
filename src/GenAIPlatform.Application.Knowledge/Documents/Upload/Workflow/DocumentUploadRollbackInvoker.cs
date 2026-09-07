@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
 using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Application.Knowledge.Documents;

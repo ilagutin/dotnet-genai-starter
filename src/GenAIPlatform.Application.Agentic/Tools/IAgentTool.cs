@@ -1,7 +1,7 @@
-using GenAIPlatform.Application.Agentic.Validation;
-using GenAIPlatform.Domain.Agentic;
 using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Tools;
 

@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Infrastructure.Configuration;
 using GenAIPlatform.Infrastructure.ModelGateway.OpenAi.Dtos;

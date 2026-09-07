@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Domain.Evaluations;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun.Cases;

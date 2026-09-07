@@ -1,7 +1,7 @@
-using GenAIPlatform.Worker;
 using GenAIPlatform.Application.Core;
 using GenAIPlatform.Application.Knowledge;
 using GenAIPlatform.Infrastructure;
+using GenAIPlatform.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddApplicationCore(builder.Configuration);

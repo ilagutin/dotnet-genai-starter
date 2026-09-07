@@ -1,11 +1,8 @@
-using GenAIPlatform.Application.Evaluations.StartRun.Context;
-using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Domain.Evaluations.Dataset;
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Knowledge.Embeddings;
-using GenAIPlatform.Application.Core.Embeddings;
+using GenAIPlatform.Application.Evaluations.StartRun.Context;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Knowledge.Embeddings;
+using GenAIPlatform.Domain.Evaluations.Dataset;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun;

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic;
 using GenAIPlatform.Application.Agentic.Chat;
 using GenAIPlatform.Application.Agentic.Tools;
@@ -6,7 +9,6 @@ using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Generation.Prompts;
 using GenAIPlatform.Application.Generation.Prompts.Rendering;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Domain.Observability;
@@ -18,9 +20,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 
 namespace GenAIPlatform.UnitTests;
 

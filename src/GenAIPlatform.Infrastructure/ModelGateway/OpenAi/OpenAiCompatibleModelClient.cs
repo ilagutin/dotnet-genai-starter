@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;

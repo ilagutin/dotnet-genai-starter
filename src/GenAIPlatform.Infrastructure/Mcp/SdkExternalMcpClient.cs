@@ -1,5 +1,5 @@
-using ModelContextProtocol.Client;
 using System.Text.Json;
+using ModelContextProtocol.Client;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 

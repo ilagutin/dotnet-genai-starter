@@ -1,6 +1,6 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
 
 namespace GenAIPlatform.Application.Agentic.Tools.Execution;
 

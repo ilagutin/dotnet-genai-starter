@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -6,8 +5,8 @@ using System.Text;
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Generation.Chat;
 using GenAIPlatform.Application.Knowledge.Documents;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;

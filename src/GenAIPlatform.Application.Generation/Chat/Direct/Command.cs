@@ -1,6 +1,5 @@
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 
 namespace GenAIPlatform.Application.Generation.Chat;
 

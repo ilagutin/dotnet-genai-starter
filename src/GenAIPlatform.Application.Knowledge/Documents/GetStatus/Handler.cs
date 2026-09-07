@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Security;
 
 namespace GenAIPlatform.Application.Knowledge.Documents;

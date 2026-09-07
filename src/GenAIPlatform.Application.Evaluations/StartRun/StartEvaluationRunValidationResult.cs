@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Evaluations;
-
 namespace GenAIPlatform.Application.Evaluations.StartRun;
 
 public sealed record StartEvaluationRunValidationResult(

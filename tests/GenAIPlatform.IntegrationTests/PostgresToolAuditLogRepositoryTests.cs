@@ -1,7 +1,6 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
-using GenAIPlatform.Application.Agentic;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

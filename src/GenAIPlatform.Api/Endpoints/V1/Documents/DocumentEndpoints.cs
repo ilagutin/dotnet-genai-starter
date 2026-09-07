@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Core.Configuration;
 using GenAIPlatform.Application.Knowledge.Documents;
 using Microsoft.Extensions.Options;
 

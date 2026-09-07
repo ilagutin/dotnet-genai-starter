@@ -1,9 +1,7 @@
-using GenAIPlatform.Application.Evaluations.StartRun.Context;
 using GenAIPlatform.Application.Evaluations.StartRun.Cases;
-using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Domain.Evaluations;
+using GenAIPlatform.Application.Evaluations.StartRun.Context;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Evaluations;
 using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun;

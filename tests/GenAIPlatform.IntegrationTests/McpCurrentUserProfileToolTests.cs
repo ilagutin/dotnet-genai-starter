@@ -1,4 +1,5 @@
 extern alias McpHost;
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools.Execute;
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Domain.Agentic;
@@ -7,7 +8,6 @@ using McpHost::GenAIPlatform.Mcp.Tools;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using System.Text.Json;
 
 namespace GenAIPlatform.IntegrationTests;
 

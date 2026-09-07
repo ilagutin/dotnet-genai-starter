@@ -1,5 +1,5 @@
-using GenAIPlatform.Domain.Agentic;
 using System.Text.Json;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Tools.Execution;
 

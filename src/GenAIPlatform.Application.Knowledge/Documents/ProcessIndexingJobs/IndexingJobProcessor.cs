@@ -1,6 +1,5 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Embedding;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 using GenAIPlatform.Domain.Documents;
 
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;

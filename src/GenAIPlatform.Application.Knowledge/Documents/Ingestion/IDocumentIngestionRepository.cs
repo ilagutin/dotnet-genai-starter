@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Documents;
 
 namespace GenAIPlatform.Application.Knowledge.Documents;

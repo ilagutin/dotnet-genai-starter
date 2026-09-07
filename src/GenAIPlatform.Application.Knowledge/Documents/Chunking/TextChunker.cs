@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using GenAIPlatform.Application.Core.Configuration;
 using GenAIPlatform.Domain.Documents;
 using Microsoft.Extensions.Options;
 

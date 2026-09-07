@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
 

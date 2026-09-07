@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic;
 using GenAIPlatform.Application.Agentic.Chat;
 using GenAIPlatform.Application.Agentic.Tools;
@@ -12,7 +13,6 @@ using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Domain.Prompts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Text.Json;
 
 namespace GenAIPlatform.UnitTests;
 

@@ -1,6 +1,5 @@
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Agentic.Chat;
+using GenAIPlatform.Application.Generation.ModelGateway;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Agentic.Validation;

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Infrastructure.ModelGateway.OpenAi.Dtos;
 

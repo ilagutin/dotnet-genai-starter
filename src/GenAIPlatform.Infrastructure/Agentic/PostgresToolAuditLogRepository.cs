@@ -1,6 +1,5 @@
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
 using GenAIPlatform.Infrastructure.Postgres;
 using Npgsql;
 using NpgsqlTypes;

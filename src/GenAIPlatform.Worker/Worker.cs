@@ -1,10 +1,7 @@
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Health;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using GenAIPlatform.Application.Knowledge.Documents;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Worker;

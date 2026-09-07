@@ -1,7 +1,5 @@
-using GenAIPlatform.Domain.Prompts;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Generation.Prompts;
+using GenAIPlatform.Domain.Prompts;
 
 namespace GenAIPlatform.Application.Generation.Chat;
 

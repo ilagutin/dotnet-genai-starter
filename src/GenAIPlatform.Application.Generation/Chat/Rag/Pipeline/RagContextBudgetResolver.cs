@@ -1,9 +1,6 @@
-using GenAIPlatform.Application.Generation.Prompts.Templates;
-using GenAIPlatform.Application.Generation.Prompts.Rendering;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Application.Generation.Prompts;
+using GenAIPlatform.Application.Generation.Prompts.Rendering;
+using GenAIPlatform.Application.Generation.Prompts.Templates;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Generation.Chat;

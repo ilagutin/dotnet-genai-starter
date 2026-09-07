@@ -6,6 +6,21 @@
          silently resolving a different version. Regenerate by running `dotnet restore`
          after changing a PackageReference, then commit the updated lock files. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- XML output activates IDE0005 but stays out of runtime and publish outputs. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <CopyDocumentationFileToOutputDirectory>false</CopyDocumentationFileToOutputDirectory>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
   </PropertyGroup>
+
+  <Target Name="ConfigureStyleDocumentationFile" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <DocumentationFile>$(IntermediateOutputPath)$(AssemblyName).xml</DocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <DocFileItem Remove="@(DocFileItem)" />
+      <DocFileItem Include="$(DocumentationFile)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

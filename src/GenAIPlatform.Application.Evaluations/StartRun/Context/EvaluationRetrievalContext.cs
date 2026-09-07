@@ -1,8 +1,6 @@
-using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
+using GenAIPlatform.Domain.Observability;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun.Context;
 

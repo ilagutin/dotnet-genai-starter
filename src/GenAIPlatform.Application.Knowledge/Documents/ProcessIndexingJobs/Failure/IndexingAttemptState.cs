@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 
 internal sealed class IndexingAttemptState

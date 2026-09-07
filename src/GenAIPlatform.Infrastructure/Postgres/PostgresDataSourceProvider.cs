@@ -2,7 +2,6 @@ using GenAIPlatform.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using Pgvector.Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Postgres;
 

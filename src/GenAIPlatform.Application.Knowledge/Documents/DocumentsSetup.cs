@@ -1,8 +1,8 @@
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Embedding;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 using GenAIPlatform.Application.Core.Dispatching;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Embedding;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

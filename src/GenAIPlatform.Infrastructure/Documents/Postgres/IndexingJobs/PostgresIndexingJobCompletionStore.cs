@@ -1,9 +1,9 @@
 using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Documents;
-using GenAIPlatform.Infrastructure.Postgres;
-using Npgsql;
 using GenAIPlatform.Infrastructure.Documents.Postgres.Ingestion;
 using GenAIPlatform.Infrastructure.Documents.Postgres.Shared;
+using GenAIPlatform.Infrastructure.Postgres;
+using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Documents.Postgres.IndexingJobs;
 

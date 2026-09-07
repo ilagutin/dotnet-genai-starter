@@ -1,6 +1,5 @@
-using GenAIPlatform.Domain.Evaluations;
 using System.Text.Json;
-
+using GenAIPlatform.Domain.Evaluations;
 using GenAIPlatform.Domain.Exceptions;
 
 namespace GenAIPlatform.Application.Evaluations;

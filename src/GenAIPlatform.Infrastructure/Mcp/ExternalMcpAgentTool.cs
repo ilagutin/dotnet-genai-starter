@@ -1,8 +1,8 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
