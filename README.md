@@ -19,7 +19,7 @@ This is a starter kit, not a production system. It shows how the platform bounda
 
 ## Current Status
 
-The `v0.3.0` reference release builds on the local stdio MCP host from `v0.2.0` with MCP client support for external stdio MCP servers. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and external MCP tools routed through backend policy, approval and audit.
+The `v0.3.0` reference release builds on the local stdio MCP host from `v0.2.0` with MCP client support for external stdio MCP servers. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
 
 The public sample path uses deterministic mock providers. OpenAI-compatible model and embedding adapters are included behind Application ports and covered by loopback integration tests, but this repository does not commit real-provider usage output because those runs depend on private credentials, account-specific provider behavior and sanitized local evidence.
 
@@ -63,7 +63,7 @@ Start here:
 - Evaluation runner through API and CLI.
 - Safe tool execution and bounded agentic chat.
 - Local MCP host as a fourth consumption surface alongside REST, Worker and CLI.
-- External MCP tools routed through the same Agentic validation, approval and audit path as built-in tools.
+- Configured external MCP tools routed through the same Agentic validation, policy, request-scoped simulated approval and audit path as built-in tools.
 - Docker Compose local development.
 - Clean/modular .NET architecture.
 

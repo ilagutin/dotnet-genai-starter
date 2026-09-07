@@ -51,8 +51,8 @@ Search all documents
 - Full rendered prompt logging is disabled by default.
 - Metadata logging is allowed: request ID, user ID, model, prompt version, tokens, cost, status, retrieved document IDs.
 - If full prompt logging is ever enabled, it must require opt-in, redaction, encryption, retention policy and restricted access.
-- Tool execution is controlled by backend policy. The model may propose tool calls, but it cannot execute tools directly and never receives infrastructure credentials.
+- Tool execution is controlled by backend policy. The model may propose tool calls, but it cannot execute tools directly and never receives infrastructure credentials. The `approveRiskyTools` request flag is demo-only simulated approval: it has no second principal and pre-approves later model-selected risky calls in that request after validation and policy checks. A successful approval-required execution is recorded as `SimulatedApproved` in the tool audit log.
 
 ## Tools
 
-Tool execution must go through backend policy. Risky tools require approval or must be rejected. The LLM must not receive infrastructure credentials.
+Tool execution must go through backend policy. Risky tools require simulated approval or must be rejected. Configured external MCP tools are all approval-gated. The LLM must not receive infrastructure credentials.

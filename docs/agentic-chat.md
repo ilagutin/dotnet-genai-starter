@@ -10,9 +10,9 @@ The goal is not a broad autonomous agent platform. The goal is a controlled agen
 - Agent loop has token/cost budget.
 - Backend policy decides which tools are available for the current user/request.
 - Safe tools may execute automatically.
-- Risky tools require approval.
+- Risky tools require simulated approval.
 - Forbidden tools are rejected.
-- Every proposal, approval, rejection and execution is audited.
+- Every tool execution outcome is written to the tool audit log.
 
 ## Endpoint
 
@@ -30,10 +30,14 @@ Example body:
 }
 ```
 
-`approveRiskyTools` is a demo-only simulated approval switch. Without it,
-risky tools return `ApprovalRequired` and do not execute. With it, risky tools
-may execute only if backend validation and policy allow them. `DraftEmail`
-still creates a draft only and never sends email.
+`approveRiskyTools` is a request-scoped, demo-only simulated approval flag. It
+is supplied by the same request caller, has no second approving principal, and
+is not bound to one tool call or one argument set. Without it, risky tools
+return `ApprovalRequired` and do not execute. With it, backend validation and
+policy still apply, but every later model-selected risky call in that request
+is pre-approved to execute. A successful execution that required this flag is
+audited with approval state `SimulatedApproved`. `DraftEmail` still creates a
+draft only and never sends email.
 
 ## Limits
 
@@ -61,6 +65,7 @@ The loop stops with a bounded status such as `StepLimitExceeded`,
 - No real email sending in the starter-kit sample.
 - No arbitrary SQL execution.
 - No privileged infrastructure credentials exposed to the model.
+- No durable, second-principal, single-use approval workflow.
 
 ## Relationship To Safe Tools
 
