@@ -14,15 +14,18 @@ This project versions more than releases. GenAI behavior depends on code, prompt
 The public repository treats `main` as release-ready history. A public pull request should be ready to become a GitHub Release as soon as it is merged.
 
 - Public changes land through pull requests into protected `main`.
+- Never push directly to `main`. An automated agent may push a feature or release branch and open a pull request only after explicit maintainer approval; agents do not push tags.
+- Before opening a pull request, run the applicable local gate, stage only intended paths explicitly, never use `git add -A`, and keep commits atomic and green: one logical change per commit, each passing its gate.
 - Squash merge is the expected public merge strategy: one merged PR becomes one public release commit.
 - Release PRs update `VERSION` with SemVer without a leading `v`, for example `0.2.0`.
 - Release PRs also update `CHANGELOG.md` and add `docs/release-notes-v<version>.md`, for example `docs/release-notes-v0.2.0.md`.
 - After a release PR that changes `VERSION` is merged to `main`, the `publish-release` workflow runs automatically on that `main` push.
 - The workflow reads `VERSION`, builds the tag name (`v0.2.0`), verifies the matching release-notes file, reruns the release gate, tags the current `main` commit and creates the GitHub Release.
+- The release gate includes build, format, code-organization, vulnerability and unit-test checks; PR/main CI enforces full integration coverage before merge.
 - Non-release PRs must not change `VERSION`; their merges do not run `publish-release`.
 - If the tag already exists at the same `main` commit, the workflow can resume publishing. If the tag exists at another commit, the workflow fails instead of moving history.
 - Normal releases do not require pressing `Run workflow`; the `VERSION`-changing merge to `main` is the release trigger.
-- `workflow_dispatch` and direct tag pushes are recovery paths, not the normal release path.
+- `workflow_dispatch` and direct tag pushes are recovery paths, not the normal release path; agents must not use direct tag pushes.
 
 Do not auto-increment release versions in CI. The version is part of the reviewed release PR so maintainers can choose patch, minor or major intentionally.
 
