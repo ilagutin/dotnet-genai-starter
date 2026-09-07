@@ -1,27 +1,13 @@
 # .NET-native GenAI Platform Starter Kit
 
-A .NET 10 reference implementation for the platform layer around GenAI applications: RAG, model gateway abstraction, prompt versioning, permission-aware retrieval, sanitized AI request logs, usage/cost tracking, evaluations and backend-controlled tool execution.
+A .NET 10 reference implementation for a practical, secure backend platform layer around GenAI applications.
 
-This is a starter kit, not a production system. It shows how the platform boundaries fit together and gives teams a concrete place to start, without pretending the demo adapters are deployment-ready.
+1. Upload [`samples/documents/demo-notes.md`](samples/documents/demo-notes.md) as a tenant-public document.
+2. The Worker indexes it with the deterministic local mock providers.
+3. Ask a RAG question and receive an answer with citation `[1]`.
+4. Read the usage line for request count, tokens and estimated cost.
 
-## What This Is
-
-- A modular-monolith sample using Clean Architecture, simple domain records and a lightweight internal application pipeline.
-- A working local demo for document upload, DB-backed indexing, pgvector-backed RAG, direct chat, usage reporting, API/CLI evaluations, bounded agentic chat, a local MCP host and external MCP tools under first-party governance.
-- A reference for safe GenAI defaults: access filters before prompt construction, metadata-only request logging by default, deterministic mock providers for tests and backend policy for tools.
-
-## What This Is Not
-
-- Not a full framework with stable public extension contracts.
-- Not a no-code builder, SaaS platform or ML training platform.
-- Not production-ready as-is: demo auth, mock providers and demo tools are intentionally replaceable adapters.
-- Not a claim of production scale, live traffic or enterprise deployment.
-
-## Current Status
-
-The `v0.3.0` reference release builds on the local stdio MCP host from `v0.2.0` with MCP client support for external stdio MCP servers. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
-
-The public sample path uses deterministic mock providers. OpenAI-compatible model and embedding adapters are included behind Application ports and covered by loopback integration tests, but this repository does not commit real-provider usage output because those runs depend on private credentials, account-specific provider behavior and sanitized local evidence.
+![Deterministic local RAG demo result with citation and usage summary](docs/images/genai-platform-rag-demo.png)
 
 ## Architecture
 
@@ -45,6 +31,27 @@ The project uses Clean Architecture with CQRS-lite where it improves clarity. AP
 `GenAIPlatform.Mcp` adds a local stdio MCP host as the fourth consumption surface: REST for HTTP callers, Worker for background jobs, the Evaluations CLI for offline runs and MCP for AI clients. It exposes a bounded read-only tool set over existing Application use cases, including one governed safe Agentic tool that still goes through backend policy and audit.
 
 External MCP servers are consumed separately by Infrastructure as Agentic tool sources. Their tools are not exposed through the local MCP host as a generic executor; they appear in the platform's agentic loop only after allow-listing, snapshotting, name prefixing and backend approval policy.
+
+## What This Is Not
+
+- Not a production-ready framework or a claim of production scale, live traffic or enterprise deployment.
+- Not a no-code builder, SaaS platform or ML training platform; demo auth, mock providers and demo tools are intentionally replaceable adapters.
+
+## Current Status
+
+The `v0.3.0` reference release builds on the local stdio MCP host from `v0.2.0` with MCP client support for external stdio MCP servers. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
+
+The public sample path uses deterministic mock providers. OpenAI-compatible model and embedding adapters are included behind Application ports and covered by loopback integration tests, but this repository does not commit real-provider usage output because those runs depend on private credentials, account-specific provider behavior and sanitized local evidence.
+
+## How This Was Built
+
+Implementation and refactoring were heavily assisted by coding agents. Igor Lagutin owned the
+product scope, architecture, task decomposition, acceptance criteria, review decisions and release
+gates. Generated changes were treated as untrusted until the relevant build, tests, Docker scenarios,
+code-organization checks and vulnerability gate passed.
+
+Failures and trade-offs stay visible in the repository. The recorded real-model smoke results include
+unsuccessful runs instead of presenting only the best outcome.
 
 Start here:
 
