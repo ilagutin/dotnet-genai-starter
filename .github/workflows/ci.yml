@@ -51,4 +51,4 @@ jobs:
       - name: Test
         env:
           GENAI_REQUIRE_DOCKER_TESTS: "true"
-        run: dotnet test GenAIPlatform.slnx --configuration Release --no-build
+        run: dotnet test --solution GenAIPlatform.slnx --configuration Release --no-build

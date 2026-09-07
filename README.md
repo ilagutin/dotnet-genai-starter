@@ -136,7 +136,7 @@ Minimal local path:
 Copy-Item .env.example .env
 dotnet restore GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
-dotnet test GenAIPlatform.slnx
+dotnet test --solution GenAIPlatform.slnx
 docker compose up -d postgres
 ```
 

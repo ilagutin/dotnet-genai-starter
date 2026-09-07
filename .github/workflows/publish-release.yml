@@ -152,7 +152,7 @@ jobs:
       - name: Full release test gate
         env:
           GENAI_REQUIRE_DOCKER_TESTS: "true"
-        run: dotnet test GenAIPlatform.slnx --configuration Release --no-build
+        run: dotnet test --solution GenAIPlatform.slnx --configuration Release --no-build
 
   publish:
     needs: verify

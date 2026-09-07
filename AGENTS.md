@@ -60,9 +60,9 @@ dotnet build GenAIPlatform.slnx
 dotnet format GenAIPlatform.slnx --verify-no-changes --verbosity minimal
 powershell -ExecutionPolicy Bypass -File scripts\code-organization-gate.ps1
 powershell -ExecutionPolicy Bypass -File scripts\package-vulnerability-gate.ps1
-dotnet test GenAIPlatform.slnx
+dotnet test --solution GenAIPlatform.slnx
 $env:GENAI_REQUIRE_DOCKER_TESTS = "true"
-dotnet test tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
+dotnet test --project tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
 ```
 
 ## When unsure

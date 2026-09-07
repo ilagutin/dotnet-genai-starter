@@ -32,7 +32,7 @@ Docker/demo placeholders.
 ```powershell
 dotnet restore GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
-dotnet test GenAIPlatform.slnx
+dotnet test --solution GenAIPlatform.slnx
 ```
 
 PostgreSQL repository tests use Testcontainers. Outside CI they skip when Docker
