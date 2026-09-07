@@ -8,10 +8,8 @@ on:
       - main
     paths:
       - VERSION
-    tags:
-      - "v*.*.*"
-  # Recovery path: manually publish from main with an explicit version if an
-  # automatic run must be repaired or replayed.
+  # Recovery path: replay publication from main with an explicit version if an
+  # automatic run must be repaired.
   workflow_dispatch:
     inputs:
       version:
@@ -19,17 +17,21 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
-  group: publish-release-${{ github.ref }}
+  group: publish-release-main
   cancel-in-progress: false
 
 jobs:
-  release:
+  verify:
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      notes_file: ${{ steps.version.outputs.notes_file }}
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
@@ -37,24 +39,30 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact release checkout
+        env:
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EVENT_SHA}"
 
       # Resolve the release version and require its release-notes file BEFORE the
       # build/format/gates/tests, so a bad version or missing notes fail fast.
-      # Main pushes reach this workflow only when VERSION changes, workflow_dispatch
-      # uses the typed input, and tag pushes publish the pushed tag. Main/dispatch
-      # releases create a tag only when the same version does not already point at
-      # the current HEAD.
+      # Main pushes reach this workflow only when VERSION changes. Dispatch is a
+      # recovery replay on main and must match the current VERSION. Both paths run
+      # the complete release gate on this checkout before one workflow creates a tag.
       - name: Resolve and validate release version
         id: version
         env:
           DISPATCH_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-
-          can_create_tag=false
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
             if [[ ! -f VERSION ]]; then
@@ -69,7 +77,6 @@ jobs:
             fi
 
             version="v${version_file}"
-            can_create_tag=true
           elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
               echo "::error::workflow_dispatch releases must run from main, got '${GITHUB_REF}'."
@@ -86,9 +93,13 @@ jobs:
               exit 1
             fi
 
-            can_create_tag=true
+            if [[ ! -f VERSION ]] || [[ "${version}" != "v$(tr -d '[:space:]' < VERSION)" ]]; then
+              echo "::error::Dispatch version '${version}' must match VERSION at the current main HEAD."
+              exit 1
+            fi
           else
-            version="${GITHUB_REF_NAME}"
+            echo "::error::Unsupported release event '${GITHUB_EVENT_NAME}'."
+            exit 1
           fi
 
           if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -102,7 +113,6 @@ jobs:
             exit 1
           fi
 
-          tag_exists=false
           if git rev-parse --verify --quiet "refs/tags/${version}" >/dev/null; then
             tagged_sha="$(git rev-list -n 1 "refs/tags/${version}")"
             head_sha="$(git rev-parse HEAD)"
@@ -110,50 +120,20 @@ jobs:
               echo "::error::Tag '${version}' already exists at ${tagged_sha}, but current HEAD is ${head_sha}."
               exit 1
             fi
-            tag_exists=true
-          fi
-
-          should_create_tag=false
-          if [[ "${can_create_tag}" == "true" && "${tag_exists}" != "true" ]]; then
-            should_create_tag=true
           fi
 
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "notes_file=${notes_file}" >> "${GITHUB_OUTPUT}"
-          echo "should_create_tag=${should_create_tag}" >> "${GITHUB_OUTPUT}"
-
-      - name: Detect NuGet lock files
-        id: nuget-locks
-        shell: bash
-        run: |
-          set -euo pipefail
-          if find . -name packages.lock.json -not -path "*/bin/*" -not -path "*/obj/*" | grep -q .; then
-            echo "found=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "found=false" >> "${GITHUB_OUTPUT}"
-          fi
 
       - name: Setup .NET with NuGet cache
-        if: steps.nuget-locks.outputs.found == 'true'
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Setup .NET
-        if: steps.nuget-locks.outputs.found != 'true'
-        uses: actions/setup-dotnet@v6.0.0
-        with:
-          dotnet-version: 10.0.x
-
       - name: Restore locked dependencies
-        if: steps.nuget-locks.outputs.found == 'true'
         run: dotnet restore GenAIPlatform.slnx --locked-mode
-
-      - name: Restore dependencies
-        if: steps.nuget-locks.outputs.found != 'true'
-        run: dotnet restore GenAIPlatform.slnx
 
       - name: Build
         run: dotnet build GenAIPlatform.slnx --configuration Release --no-restore
@@ -169,17 +149,75 @@ jobs:
         shell: pwsh
         run: ./scripts/package-vulnerability-gate.ps1
 
-      - name: Unit tests
-        run: dotnet test tests/GenAIPlatform.UnitTests/GenAIPlatform.UnitTests.csproj --configuration Release --no-build
-
-      # Main/dispatch releases tag the validated HEAD. Tag-push releases already
-      # have a tag, and reruns skip this step when the tag points at the same HEAD.
-      - name: Tag release commit
-        if: steps.version.outputs.should_create_tag == 'true'
+      - name: Full release test gate
         env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          GENAI_REQUIRE_DOCKER_TESTS: "true"
+        run: dotnet test GenAIPlatform.slnx --configuration Release --no-build
+
+  publish:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact verified release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Verify exact release checkout
+        env:
+          EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EVENT_SHA}"
+
+      - name: Revalidate verified release metadata
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+          NOTES_FILE: ${{ needs.verify.outputs.notes_file }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Verified release version '${RELEASE_VERSION}' is invalid."
+            exit 1
+          fi
+
+          expected_notes="docs/release-notes-${RELEASE_VERSION}.md"
+          if [[ "${NOTES_FILE}" != "${expected_notes}" ]] || [[ ! -f "${NOTES_FILE}" ]]; then
+            echo "::error::Verified release notes '${NOTES_FILE}' are invalid or missing."
+            exit 1
+          fi
+
+          if [[ ! -f VERSION ]] || [[ "${RELEASE_VERSION}" != "v$(tr -d '[:space:]' < VERSION)" ]]; then
+            echo "::error::Verified release version '${RELEASE_VERSION}' no longer matches VERSION."
+            exit 1
+          fi
+
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_VERSION}" >/dev/null; then
+            tagged_sha="$(git rev-list -n 1 "refs/tags/${RELEASE_VERSION}")"
+            head_sha="$(git rev-parse HEAD)"
+            if [[ "${tagged_sha}" != "${head_sha}" ]]; then
+              echo "::error::Tag '${RELEASE_VERSION}' exists at ${tagged_sha}, not verified HEAD ${head_sha}."
+              exit 1
+            fi
+          fi
+
+      - name: Tag verified release commit
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_VERSION}" >/dev/null; then
+            echo "Tag '${RELEASE_VERSION}' already points at the verified release commit."
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "${RELEASE_VERSION}" -m "${RELEASE_VERSION}"
@@ -189,8 +227,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          NOTES_FILE: ${{ steps.version.outputs.notes_file }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+          NOTES_FILE: ${{ needs.verify.outputs.notes_file }}
         run: |
           set -euo pipefail
 
