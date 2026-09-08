@@ -39,9 +39,9 @@ External MCP servers are consumed separately by Infrastructure as Agentic tool s
 
 ## Current Status
 
-The `v0.3.1` reference release is a correctness, safety, build and repository-hygiene patch over `v0.3.0`. It retains the local stdio MCP host from `v0.2.0` and external stdio MCP client support from `v0.3.0`. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. Tool arguments are now checked against declared bounded schemas, external results are bounded, external audit projections are metadata-only, uncertain external effects stop the active run without automatic replay, and unusable token usage stops further agentic execution. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
+The `v0.3.1` reference release is a correctness, safety, build and repository-hygiene patch over `v0.3.0`; it retains the local MCP host and external MCP client support. See the [v0.3.1 release notes](docs/release-notes-v0.3.1.md) for the release detail and the documentation below for architecture and safety boundaries.
 
-The public sample path uses deterministic mock providers. OpenAI-compatible model and embedding adapters are included behind Application ports and covered by loopback integration tests, but this repository does not commit real-provider usage output because those runs depend on private credentials, account-specific provider behavior and sanitized local evidence.
+The public sample path uses deterministic mock providers. OpenAI-compatible adapters are covered by loopback integration tests, while Docker-backed tests cover local persistence behavior; this repository does not publish live-provider results because they depend on private credentials and account-specific behavior.
 
 ## How This Was Built
 
@@ -50,8 +50,7 @@ product scope, architecture, task decomposition, acceptance criteria, review dec
 gates. Generated changes were treated as untrusted until the relevant build, tests, Docker scenarios,
 code-organization checks and vulnerability gate passed.
 
-Failures and trade-offs stay visible in the repository. The recorded real-model smoke results include
-unsuccessful runs instead of presenting only the best outcome.
+Failures and trade-offs stay visible in the repository. Its published verification covers mock-provider, loopback and Docker-backed checks; live-provider results are not published.
 
 Start here:
 
@@ -101,10 +100,7 @@ Start here:
 - pgvector.
 - Docker Compose.
 - OpenAI-compatible model and embedding clients.
-- Model chat retries honor `Retry-After` with 0 through 20 percent jitter and a
-  final `RetryMaxDelaySeconds` cap (default 30, range 1..300); a 60-second hint
-  saturates at 30 seconds by default. HTTP 501/505 are excluded, and cancellation
-  interrupts backoff. See [model-only retry behavior](docs/model-gateway.md#chat-completion-retries).
+- Model gateway with documented [chat completion retry behavior](docs/model-gateway.md#chat-completion-retries).
 - Mock model and embedding clients for tests.
 - Sanitized AI request logs, usage/cost tracking and documented observability extension points.
 - xUnit.
