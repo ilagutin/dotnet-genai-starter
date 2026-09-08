@@ -503,9 +503,85 @@ public sealed class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
 
         var response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal("Forbidden", problem.Title);
+        Assert.Equal(403, problem.Status);
         var repository = usageFactory.Services.GetRequiredService<CapturingUsageRepository>();
         Assert.Null(repository.Query);
+    }
+
+    [Theory]
+    [InlineData(false, "alice", "tenant-a", "admin", "?tenantId=tenant-b", 401, "Unauthorized")]
+    [InlineData(false, "alice", "tenant-a", "admin", "?from=2026-06-02&to=2026-06-01", 401, "Unauthorized")]
+    [InlineData(true, "alice", "tenant-a", "developer", "?tenantId=tenant-b", 403, "Forbidden")]
+    [InlineData(true, "alice", "tenant-a", "developer", "?userId=bob", 403, "Forbidden")]
+    [InlineData(true, "alice", "tenant-a", "developer", "?userId=bob&tenantId=tenant-b", 403, "Forbidden")]
+    [InlineData(true, null, "tenant-a", "developer", "", 401, "Unauthorized")]
+    [InlineData(true, "system", null, "developer", "", 401, "Unauthorized")]
+    [InlineData(true, "alice", " ", "developer", "", 401, "Unauthorized")]
+    [InlineData(true, "alice", "tenant-a", "developer", "?from=2026-06-02&to=2026-06-01", 400, "Request validation failed")]
+    [InlineData(true, null, null, "admin", "?from=2026-06-02&to=2026-06-01", 400, "Request validation failed")]
+    public async Task UsageEndpoint_DenialsReturnProblemDetailsWithoutStorage(
+        bool authenticated, string? user, string? tenant, string role, string query, int status, string title)
+    {
+        var repository = new CapturingUsageRepository();
+        using var usageFactory = CreateUsageFactory(new UsageUserContext(authenticated, user, tenant, role), repository);
+        using var client = usageFactory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+        var response = await client.GetAsync("/api/v1/usage" + query);
+
+        Assert.Equal(status, (int)response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(status, problem.Status);
+        Assert.Equal(title, problem.Title);
+        Assert.False(problem.Extensions.ContainsKey("errorCode"));
+        Assert.Equal(0, repository.Calls);
+    }
+
+    [Theory]
+    [InlineData("developer", "", "alice", "tenant-a")]
+    [InlineData("developer", "&userId=%20&tenantId=%20", "alice", "tenant-a")]
+    [InlineData("developer", "&userId=alice&tenantId=tenant-a", "alice", "tenant-a")]
+    [InlineData("AdMiN", "&userId=bob&tenantId=tenant-b", "bob", "tenant-b")]
+    [InlineData("admin", "", null, null)]
+    public async Task UsageEndpoint_AllowedScopePreservesFilters(string role, string query, string? expectedUser, string? expectedTenant)
+    {
+        var repository = new CapturingUsageRepository();
+        using var usageFactory = CreateUsageFactory(new UsageUserContext(true, "alice", "tenant-a", role), repository);
+        using var client = usageFactory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+        var response = await client.GetAsync("/api/v1/usage?from=2026-05-01&to=2026-05-01&model=mock-chat" + query);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, repository.Calls);
+        Assert.Equal(new UsageQuery(DateTimeOffset.Parse("2026-05-01T00:00:00Z"),
+            DateTimeOffset.Parse("2026-05-01T00:00:00Z"), expectedUser, expectedTenant, "mock-chat"), repository.Query);
+    }
+
+    private WebApplicationFactory<Program> CreateUsageFactory(IUserContext context, IUsageRepository repository) =>
+        factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IUserContext>();
+                services.AddSingleton(context);
+                services.RemoveAll<IUsageRepository>();
+                services.AddSingleton(repository);
+            });
+        });
+
+    private sealed class UsageUserContext(bool authenticated, string? user, string? tenant, string role) : IUserContext
+    {
+        public bool IsAuthenticated => authenticated;
+        public string? UserId => user;
+        public string? TenantId => tenant;
+        public IReadOnlyCollection<string> Roles => [role];
+        public IReadOnlyCollection<string> Groups => [];
     }
 
     [Fact]
@@ -841,12 +917,14 @@ public sealed class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
 
     private sealed class CapturingUsageRepository : IUsageRepository
     {
+        public int Calls { get; private set; }
         public UsageQuery? Query { get; private set; }
 
         public Task<UsageSummary> GetUsageAsync(
             UsageQuery query,
             CancellationToken cancellationToken)
         {
+            Calls++;
             Query = query;
             return Task.FromResult(new UsageSummary(
                 Requests: 2,

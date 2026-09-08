@@ -29,10 +29,19 @@ Application handlers see this identity through `IUserContext` and `IBackgroundUs
 
 - `server_info`: returns host version and active service identity details.
 - `rag_answer`: answers a question with existing permission-aware RAG retrieval. It preserves the normal no-context fallback, citation behavior and access filters before prompt construction.
-- `get_usage`: returns tenant-scoped AI request usage totals with the same Application usage rules as other hosts.
+- `get_usage`: returns AI request usage totals with the same Application usage rules as other hosts.
 - `get_current_user_profile`: calls the governed Agentic tool use case for the built-in safe profile tool and writes a row to `genai.tool_audit_logs`.
 
 There is no generic `execute_tool_by_name`, `run_tool` or registry executor exposed through MCP. `list_documents` is not exposed because the starter kit does not currently have a read-only user document list use case.
+
+`get_usage` authenticates the active service identity before checking roles or the date range.
+Non-admin identities require a nonblank user and tenant. Omitted or blank user/tenant filters use
+that identity; explicit mismatches are forbidden using case-sensitive comparison. Authenticated
+admins (case-insensitive role name) may query aggregate or cross-scope totals. Reversed date ranges
+remain validation errors and equal dates are allowed. Denials never query usage storage and become
+`McpException` errors with the `get_usage failed:` prefix. REST maps the same policy to 401 for
+unauthenticated/incomplete non-admin identity and 403 for scope mismatch. The local configured
+identity is shared by callers of that host; this is not per-caller remote authentication.
 
 ## Approval Limitation
 

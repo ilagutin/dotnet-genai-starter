@@ -1,5 +1,6 @@
 using System.Net;
 using GenAIPlatform.Application.Core.Configuration;
+using GenAIPlatform.Application.Core.Exceptions;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Application.Generation.ModelGateway;
@@ -214,12 +215,12 @@ public sealed class ObservabilityTests
             new CapturingUsageRepository(),
             new UsageQueryScopeResolver(new FakeUserContext()));
 
-        await Assert.ThrowsAsync<UsageQueryValidationException>(() =>
+        await Assert.ThrowsAsync<ForbiddenRequestException>(() =>
             handler.HandleAsync(
                 new UsageQuery(UserId: "bob", TenantId: "tenant-a"),
                 CancellationToken.None));
 
-        await Assert.ThrowsAsync<UsageQueryValidationException>(() =>
+        await Assert.ThrowsAsync<ForbiddenRequestException>(() =>
             handler.HandleAsync(
                 new UsageQuery(UserId: "alice", TenantId: "tenant-b"),
                 CancellationToken.None));

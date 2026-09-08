@@ -18,6 +18,19 @@ The API registers the demo header-based `IUserContext` only for `Development` by
 
 Demo headers such as `X-Demo-User-Id`, `X-Demo-Tenant-Id` and `X-Demo-Roles` are caller-controlled sample inputs. They are useful for local walkthroughs, but they are not authentication and must not be trusted in deployed environments.
 
+## Usage Access
+
+Usage queries authenticate before reading roles or validating the date range. Anonymous callers
+receive 401, including callers claiming `admin`. Authenticated non-admin callers require both a
+user and tenant identity; missing or blank values receive 401. Omitted or blank scope filters use
+that identity, while an explicit user or tenant mismatch (ordinal, case-sensitive) receives 403
+before storage is queried. Authenticated admins retain aggregate and cross-scope queries. Reversed
+authenticated date ranges receive 400. The HTTP errors are ProblemDetails responses.
+
+MCP `get_usage` uses the same Application policy under the configured local service identity and
+maps denials to MCP errors. It does not authenticate each remote caller. These checks rely on the
+host's `IUserContext`; they do not make caller-controlled demo headers trustworthy.
+
 ## Retrieval Access
 
 Current document access model:
