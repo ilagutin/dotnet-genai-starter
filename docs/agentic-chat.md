@@ -50,26 +50,51 @@ Default local limits:
 - max estimated cost: 0.05 USD-equivalent demo budget.
 
 Agentic budget checks use the same effective provider/model pricing records as
-AI request logging when a matching pricing row exists. If pricing is unavailable
-or no matching record is configured, the loop falls back to the local
+AI request logging when a matching pricing row and complete validated input/output
+counts exist. If pricing or either component is unavailable, the loop falls back to the local
 `EstimatedCostPerThousandTokens` demo estimate so the starter kit still enforces
 a bounded cost budget in mock/local setups.
 
 The first fallback in each conversation emits warning event 4002,
 `AgenticBudgetFallbackUsed`. A missing estimate uses `pricing_unavailable`;
-an estimator exception uses `estimator_failed` plus its type. Later steps in the
+an estimator exception uses `estimator_failed` plus its type. Valid total-only or
+partial-component usage uses `usage_components_unavailable`. Later steps in the
 same conversation do not repeat the warning, while another conversation in the
 same dependency-injection scope has its own warning state. Structured
 `ConversationId` and the session's validated `CorrelationId` attribute each
 warning to its conversation and request. Successful estimates
 and cancellation do not emit it. No response content or exception message is
-logged in this event. This diagnostic does not change the demo arithmetic:
-missing total-token usage still contributes zero, and budget checks currently
-stop only when a total is greater than its configured limit.
+logged in this event.
+
+After each model response, the loop validates usage before cost estimation or
+tool execution. Every supplied count must be nonnegative. A supplied total is
+usable with zero or one component; with both components it must equal their
+checked sum. When the total is missing, both components are required to derive
+an internal total. Provider-reported usage is never rewritten. Aggregate input,
+output and provider-total fields stay null once any contributing valid response
+omits that field; the separate `TotalTokens` includes valid derived totals.
+
+Missing or all-null usage stops with `UsageUnavailable`; negative, incomplete
+without a total, inconsistent or overflowing counts stop with `InvalidUsage`.
+Proposed tools are audited `NotExecuted` with `usage_unavailable` or
+`invalid_usage`, including proposals that separately fail argument validation.
+No tool, budget cost estimator or later model call runs for unusable usage.
+Previously measured totals, aggregate usage and estimated cost remain intact.
+The unchanged HTTP 200 response carries the stop status. If the first response
+has unusable usage, zero accumulated totals mean no known measured steps, not
+that the in-flight call was free. That call has already incurred potentially
+unknown spend; these post-response checks cannot enforce a hard provider-side
+spending cap or recover missing usage.
+
+Both token and estimated-cost checks stop at or above the configured limit,
+before proposed tools and any later call. Fallback cost is a local estimate from
+the validated total, rounded to eight decimal places; it is not measured billing.
+An unrepresentable fallback or cumulative cost saturates at the maximum decimal value and therefore
+reaches the cost limit. Checked cumulative accounting cannot silently wrap.
 
 The loop stops with a bounded status such as `StepLimitExceeded`,
 `TimedOut`, `ToolLimitExceeded`, `BudgetExceeded`, `ToolRejected`, `ToolFailed` or
-`ApprovalRequired`.
+`ApprovalRequired`, `UsageUnavailable` or `InvalidUsage`.
 
 `ToolFailed` means that backend execution did not confirm successful completion.
 For external MCP tools, a lost response, timeout or shutdown cancellation after

@@ -33,19 +33,47 @@ internal sealed class AgenticChatLoopState
 
     public decimal EstimatedCost { get; private set; }
 
-    public async Task ApplyModelResponseAsync(
+    public async Task<AgenticChatStatus?> ApplyModelResponseAsync(
         AiModelResponse response,
         AgenticBudgetGuard budgetGuard,
         CancellationToken cancellationToken)
     {
         Provider = response.Provider;
-        usage = MergeUsage(usage, response.Usage);
-        TotalTokens += response.Usage?.TotalTokens ?? 0;
-        EstimatedCost += await budgetGuard.EstimateResponseCostAsync(
+        var failure = AgenticModelUsageValidator.Validate(response.Usage, out var stepTokens);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        AiModelUsage? mergedUsage;
+        int totalTokens;
+        try
+        {
+            totalTokens = checked(TotalTokens + stepTokens);
+            mergedUsage = MergeUsage(usage, response.Usage);
+        }
+        catch (OverflowException)
+        {
+            return AgenticChatStatus.InvalidUsage;
+        }
+
+        var stepCost = await budgetGuard.EstimateResponseCostAsync(
             response,
+            stepTokens,
             session.Options,
             budgetFallbackState,
             cancellationToken);
+        try
+        {
+            EstimatedCost = checked(EstimatedCost + stepCost);
+        }
+        catch (OverflowException)
+        {
+            EstimatedCost = decimal.MaxValue;
+        }
+
+        usage = mergedUsage;
+        TotalTokens = totalTokens;
         LastContent = response.Content;
 
         var proposedToolCalls = response.ProposedToolCalls ?? [];
@@ -56,6 +84,8 @@ internal sealed class AgenticChatLoopState
                 response.Content,
                 ToolCalls: proposedToolCalls));
         }
+
+        return null;
     }
 
     public void AddToolCallCount(int count)
@@ -116,6 +146,6 @@ internal sealed class AgenticChatLoopState
 
     private static int? Add(int? left, int? right)
     {
-        return left is null && right is null ? null : (left ?? 0) + (right ?? 0);
+        return left is { } first && right is { } second ? checked(first + second) : null;
     }
 }

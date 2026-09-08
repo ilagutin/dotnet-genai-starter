@@ -55,16 +55,14 @@ public sealed class AgenticBudgetGuardTests
             throws ? "estimator_failed" : "pricing_unavailable", throws ? nameof(InvalidOperationException) : null));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData(0)]
-    public async Task MissingOrZeroUsageRetainsExistingZeroFallback(int? tokens)
+    [Fact]
+    public async Task ValidZeroUsageHasZeroFallback()
     {
         var logger = new CapturingLogger();
         var guard = new AgenticBudgetGuard(new StubEstimator(() => Task.FromResult<decimal?>(null)),
             TimeProvider.System, logger);
 
-        var cost = await guard.EstimateResponseCostAsync(Response(tokens), Options,
+        var cost = await guard.EstimateResponseCostAsync(Response(0), 0, Options,
             new AgenticBudgetFallbackState(Guid.NewGuid(), "test-correlation"), TestContext.Current.CancellationToken);
 
         Assert.Equal(0m, cost);
@@ -79,16 +77,60 @@ public sealed class AgenticBudgetGuardTests
         var guard = new AgenticBudgetGuard(estimator, TimeProvider.System, logger);
         var state = new AgenticBudgetFallbackState(Guid.NewGuid(), "test-correlation");
 
-        var cost = await guard.EstimateResponseCostAsync(Response(123), Options, state,
+        var cost = await guard.EstimateResponseCostAsync(Response(123), 123, Options, state,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(0.01234567m, cost);
         Assert.Empty(logger.Entries);
         estimator.Estimate = () => Task.FromResult<decimal?>(null);
-        await guard.EstimateResponseCostAsync(Response(123), Options, state, TestContext.Current.CancellationToken);
+        await guard.EstimateResponseCostAsync(Response(123), 123, Options, state, TestContext.Current.CancellationToken);
         estimator.Estimate = () => Task.FromException<decimal?>(new InvalidOperationException(Secret));
-        await guard.EstimateResponseCostAsync(Response(123), Options, state, TestContext.Current.CancellationToken);
+        await guard.EstimateResponseCostAsync(Response(123), 123, Options, state, TestContext.Current.CancellationToken);
         AssertWarning(Assert.Single(logger.Entries), "pricing_unavailable", null);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DerivedTotalDrivesFallbackWithoutChangingProviderUsage(bool throws)
+    {
+        var logger = new CapturingLogger();
+        var estimator = new StubEstimator(() => throws
+            ? Task.FromException<decimal?>(new InvalidOperationException(Secret))
+            : Task.FromResult<decimal?>(null));
+        var guard = new AgenticBudgetGuard(estimator, TimeProvider.System, logger);
+        var response = Response(123) with { Usage = new AiModelUsage(100, 23, null) };
+        var state = CreateLoopState(Guid.NewGuid(), "derived-total");
+
+        Assert.Null(await state.ApplyModelResponseAsync(response, guard, TestContext.Current.CancellationToken));
+
+        Assert.Equal(123, state.TotalTokens);
+        Assert.Equal(0.00042518m, state.EstimatedCost);
+        Assert.Null(response.Usage.TotalTokens);
+        Assert.Equal(1, estimator.Calls);
+        AssertWarning(Assert.Single(logger.Entries), throws ? "estimator_failed" : "pricing_unavailable",
+            throws ? nameof(InvalidOperationException) : null);
+    }
+
+    [Fact]
+    public async Task TotalOnlyFallbackIsVisibleAndSaturatesInsteadOfOverflowing()
+    {
+        var logger = new CapturingLogger();
+        var estimator = new StubEstimator(() => throw new InvalidOperationException("Must not estimate partial usage."));
+        var guard = new AgenticBudgetGuard(estimator, TimeProvider.System, logger);
+        var options = new AgenticChatOptions
+        {
+            EstimatedCostPerThousandTokens = decimal.MaxValue,
+            MaxEstimatedCost = decimal.MaxValue
+        };
+        var response = Response(2000) with { Usage = new AiModelUsage(null, null, 2000) };
+        var cost = await guard.EstimateResponseCostAsync(response, 2000, options,
+            new(Guid.NewGuid(), "fallback-overflow"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(decimal.MaxValue, cost);
+        Assert.True(guard.IsExceeded(2000, cost, options));
+        Assert.Equal(0, estimator.Calls);
+        AssertWarning(Assert.Single(logger.Entries), "usage_components_unavailable", null);
     }
 
     [Theory]
@@ -109,7 +151,7 @@ public sealed class AgenticBudgetGuardTests
         var state = new AgenticBudgetFallbackState(Guid.NewGuid(), "test-correlation");
 
         var actual = await Assert.ThrowsAsync<OperationCanceledException>(() => guard.EstimateResponseCostAsync(
-            Response(123), Options, state, source.Token));
+            Response(123), 123, Options, state, source.Token));
 
         Assert.Same(failure, actual);
         Assert.Empty(logger.Entries);
@@ -117,12 +159,14 @@ public sealed class AgenticBudgetGuardTests
     }
 
     [Fact]
-    public void BudgetEqualityRetainsExistingStrictGreaterThanComparison()
+    public void BudgetEqualityStopsAtEitherLimit()
     {
         var logger = new CapturingLogger();
         var guard = new AgenticBudgetGuard(new StubEstimator(() => Task.FromResult<decimal?>(null)),
             TimeProvider.System, logger);
-        Assert.False(guard.IsExceeded(Options.MaxTotalTokens, Options.MaxEstimatedCost, Options));
+        Assert.True(guard.IsExceeded(Options.MaxTotalTokens, 0m, Options));
+        Assert.True(guard.IsExceeded(0, Options.MaxEstimatedCost, Options));
+        Assert.False(guard.IsExceeded(Options.MaxTotalTokens - 1, Options.MaxEstimatedCost - 0.00000001m, Options));
         Assert.True(guard.IsExceeded(Options.MaxTotalTokens + 1, 0m, Options));
         Assert.True(guard.IsExceeded(0, Options.MaxEstimatedCost + 0.00000001m, Options));
         Assert.Empty(logger.Entries);
@@ -137,8 +181,8 @@ public sealed class AgenticBudgetGuardTests
         Assert.Single(marks, static marked => marked);
     }
 
-    private static AiModelResponse Response(int? tokens) => new(Secret, Secret, Secret,
-        tokens is null ? null : new AiModelUsage(100, 23, tokens), Secret);
+    private static AiModelResponse Response(int tokens) => new(Secret, Secret, Secret,
+        new AiModelUsage(tokens, 0, tokens), Secret);
 
     private static AgenticChatLoopState CreateLoopState(Guid conversationId, string correlationId) => new(new AgenticChatSession(
         conversationId, "tenant", "user", new ModelGatewayRequestSettings(correlationId, "mock", 0, 100),

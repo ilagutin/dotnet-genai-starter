@@ -16,7 +16,8 @@ internal sealed class AgentToolAuditWriter(
         IReadOnlyList<AiToolCall> toolCalls,
         ToolExecutionStatus executionStatus,
         string errorCode,
-        string errorMessage)
+        string errorMessage,
+        bool preserveStopReason = false)
     {
         foreach (var toolCall in toolCalls)
         {
@@ -36,7 +37,8 @@ internal sealed class AgentToolAuditWriter(
                     policy,
                     executionStatus,
                     errorCode,
-                    errorMessage),
+                    errorMessage,
+                    preserveStopReason),
                 CreateContext(session),
                 CancellationToken.None);
         }
@@ -49,9 +51,10 @@ internal sealed class AgentToolAuditWriter(
         ToolPolicyDecision policy,
         ToolExecutionStatus executionStatus,
         string? errorCode,
-        string? errorMessage)
+        string? errorMessage,
+        bool preserveStopReason)
     {
-        var validationFailed = tool is not null &&
+        var validationFailed = !preserveStopReason && tool is not null &&
             policy.Risk != ToolRisk.Forbidden &&
             !validation.IsValid;
         return new AgentToolExecutionResult(

@@ -13,16 +13,23 @@ internal sealed partial class AgenticBudgetGuard(
         decimal estimatedCost,
         AgenticChatOptions options)
     {
-        return totalTokens > options.MaxTotalTokens ||
-               estimatedCost > options.MaxEstimatedCost;
+        return totalTokens >= options.MaxTotalTokens ||
+               estimatedCost >= options.MaxEstimatedCost;
     }
 
     public async Task<decimal> EstimateResponseCostAsync(
         AiModelResponse response,
+        int totalTokens,
         AgenticChatOptions options,
         AgenticBudgetFallbackState fallbackState,
         CancellationToken cancellationToken)
     {
+        if (response.Usage is not { InputTokens: not null, OutputTokens: not null })
+        {
+            LogFallback(fallbackState, "usage_components_unavailable", null);
+            return EstimateFallbackCost(totalTokens, options);
+        }
+
         try
         {
             var estimate = await costEstimator.EstimateAsync(
@@ -42,11 +49,11 @@ internal sealed partial class AgenticBudgetGuard(
         catch (Exception exception)
         {
             LogFallback(fallbackState, "estimator_failed", exception.GetType().Name);
-            return EstimateFallbackCost(response.Usage?.TotalTokens, options);
+            return EstimateFallbackCost(totalTokens, options);
         }
 
         LogFallback(fallbackState, "pricing_unavailable", null);
-        return EstimateFallbackCost(response.Usage?.TotalTokens, options);
+        return EstimateFallbackCost(totalTokens, options);
     }
 
     private void LogFallback(AgenticBudgetFallbackState state, string reason, string? exceptionType)
@@ -70,12 +77,17 @@ internal sealed partial class AgenticBudgetGuard(
         string? exceptionType);
 
     private static decimal EstimateFallbackCost(
-        int? totalTokens,
+        int totalTokens,
         AgenticChatOptions options)
     {
-        return Math.Round(
-            (totalTokens ?? 0) / 1000m * options.EstimatedCostPerThousandTokens,
-            8,
-            MidpointRounding.AwayFromZero);
+        try
+        {
+            return Math.Round(totalTokens / 1000m * options.EstimatedCostPerThousandTokens,
+                8, MidpointRounding.AwayFromZero);
+        }
+        catch (OverflowException)
+        {
+            return decimal.MaxValue;
+        }
     }
 }

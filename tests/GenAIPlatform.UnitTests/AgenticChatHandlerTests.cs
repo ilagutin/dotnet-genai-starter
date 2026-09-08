@@ -504,6 +504,7 @@ public sealed class AgenticChatHandlerTests
                     "agent-test")
             ]),
             new CapturingToolAuditLogRepository(),
+            options: new AgenticChatOptions { MaxEstimatedCost = 0.1m },
             aiLogRepository: aiLogs,
             pricingRepository: new InMemoryPricingRepository([
                 CreatePricingRecord(
