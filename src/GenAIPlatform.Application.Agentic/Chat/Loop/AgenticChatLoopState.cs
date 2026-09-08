@@ -8,11 +8,13 @@ internal sealed class AgenticChatLoopState
     private readonly AgenticChatSession session;
     private readonly List<AiChatMessage> messages;
     private readonly IReadOnlyList<AiChatMessage> readOnlyMessages;
+    private readonly AgenticBudgetFallbackState budgetFallbackState;
     private AiModelUsage? usage;
 
     public AgenticChatLoopState(AgenticChatSession session)
     {
         this.session = session;
+        budgetFallbackState = new AgenticBudgetFallbackState(session.ConversationId, session.Settings.CorrelationId);
         messages = session.Prompt.Messages.ToList();
         readOnlyMessages = messages.AsReadOnly();
     }
@@ -42,6 +44,7 @@ internal sealed class AgenticChatLoopState
         EstimatedCost += await budgetGuard.EstimateResponseCostAsync(
             response,
             session.Options,
+            budgetFallbackState,
             cancellationToken);
         LastContent = response.Content;
 

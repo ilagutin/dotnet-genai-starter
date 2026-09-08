@@ -3,12 +3,14 @@ using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Domain.Agentic;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-internal sealed class ExternalMcpAgentTool(
+internal sealed partial class ExternalMcpAgentTool(
     IExternalMcpConnectionManager connectionManager,
-    ExternalMcpToolSnapshot snapshot) : IAgentTool
+    ExternalMcpToolSnapshot snapshot,
+    ILogger<ExternalMcpAgentTool> logger) : IAgentTool
 {
     public AiToolDefinition Definition { get; } = new(
         snapshot.PrefixedName,
@@ -63,16 +65,18 @@ internal sealed class ExternalMcpAgentTool(
         {
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
+            LogFailure(exception);
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
                 "mcp_server_unavailable",
                 "External MCP server is unavailable.");
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            LogFailure(exception);
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
@@ -80,4 +84,24 @@ internal sealed class ExternalMcpAgentTool(
                 "External MCP server is unavailable.");
         }
     }
+
+    private void LogFailure(Exception exception)
+    {
+        LogExecutionFailed(
+            logger,
+            ExternalMcpNameSanitizer.SanitizeLogIdentity(snapshot.ServerName),
+            ExternalMcpNameSanitizer.SanitizeLogIdentity(snapshot.OriginalName),
+            exception.GetType().Name);
+    }
+
+    [LoggerMessage(
+        EventId = 4001,
+        EventName = "ExternalMcpToolExecutionFailed",
+        Level = LogLevel.Warning,
+        Message = "External MCP tool execution failed for {ServerName}/{ToolName} ({ExceptionType})")]
+    private static partial void LogExecutionFailed(
+        ILogger logger,
+        string serverName,
+        string toolName,
+        string exceptionType);
 }

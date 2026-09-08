@@ -166,7 +166,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         await manager.RefreshAsync(CancellationToken.None);
         try
         {
-            var source = new ExternalMcpAgentToolSource(manager);
+            var source = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance);
             var toolName = Assert.Single(source.GetAvailableTools()).Definition.Name;
             var audit = new CapturingToolAuditLogRepository();
             var dispatcher = CreateDispatcher(
@@ -223,7 +223,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         await manager.RefreshAsync(CancellationToken.None);
         try
         {
-            var source = new ExternalMcpAgentToolSource(manager);
+            var source = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance);
             var tool = Assert.Single(source.GetAvailableTools());
             var snapshotHash = tool.Definition.SchemaVersion;
             var audit = new CapturingToolAuditLogRepository();
@@ -379,7 +379,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         await manager.RefreshAsync(CancellationToken.None);
         try
         {
-            var source = new ExternalMcpAgentToolSource(manager);
+            var source = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance);
             var hash = source.GetAvailableTools()[0].Definition.SchemaVersion;
             var audit = new CapturingToolAuditLogRepository();
             var model = new SequenceModelClient([ToolResponse(
@@ -435,7 +435,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         await manager.RefreshAsync(CancellationToken.None);
         try
         {
-            var source = new ExternalMcpAgentToolSource(manager);
+            var source = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance);
             var hash = source.GetAvailableTools()[0].Definition.SchemaVersion;
             var audit = new CapturingToolAuditLogRepository
             {

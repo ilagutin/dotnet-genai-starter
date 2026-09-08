@@ -55,6 +55,18 @@ or no matching record is configured, the loop falls back to the local
 `EstimatedCostPerThousandTokens` demo estimate so the starter kit still enforces
 a bounded cost budget in mock/local setups.
 
+The first fallback in each conversation emits warning event 4002,
+`AgenticBudgetFallbackUsed`. A missing estimate uses `pricing_unavailable`;
+an estimator exception uses `estimator_failed` plus its type. Later steps in the
+same conversation do not repeat the warning, while another conversation in the
+same dependency-injection scope has its own warning state. Structured
+`ConversationId` and the session's validated `CorrelationId` attribute each
+warning to its conversation and request. Successful estimates
+and cancellation do not emit it. No response content or exception message is
+logged in this event. This diagnostic does not change the demo arithmetic:
+missing total-token usage still contributes zero, and budget checks currently
+stop only when a total is greater than its configured limit.
+
 The loop stops with a bounded status such as `StepLimitExceeded`,
 `TimedOut`, `ToolLimitExceeded`, `BudgetExceeded`, `ToolRejected`, `ToolFailed` or
 `ApprovalRequired`.

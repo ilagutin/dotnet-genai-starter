@@ -1,4 +1,5 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Infrastructure.Retrieval;
 
@@ -9,7 +10,9 @@ internal sealed class PostgresRagVectorSearchStore
     private readonly PostgresRagReadinessChecker readinessChecker;
     private readonly PostgresRagSearchExecutor searchExecutor;
 
-    public PostgresRagVectorSearchStore(PostgresRagConnectionFactory connectionFactory)
+    public PostgresRagVectorSearchStore(
+        PostgresRagConnectionFactory connectionFactory,
+        ILogger<PostgresRagSearchExecutor> logger)
     {
         var errorMapper = new RagVectorSearchErrorMapper();
 
@@ -19,7 +22,8 @@ internal sealed class PostgresRagVectorSearchStore
             errorMapper);
         searchExecutor = new PostgresRagSearchExecutor(
             connectionFactory,
-            errorMapper);
+            errorMapper,
+            logger);
     }
 
     public async Task CheckReadinessAsync(CancellationToken cancellationToken)

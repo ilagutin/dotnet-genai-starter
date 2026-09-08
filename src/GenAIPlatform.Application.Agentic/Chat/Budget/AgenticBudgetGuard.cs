@@ -1,10 +1,12 @@
 using GenAIPlatform.Application.Core.ModelClients;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 
-internal sealed class AgenticBudgetGuard(
+internal sealed partial class AgenticBudgetGuard(
     IAgenticCostEstimator costEstimator,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<AgenticBudgetGuard> logger)
 {
     public bool IsExceeded(
         int totalTokens,
@@ -18,6 +20,7 @@ internal sealed class AgenticBudgetGuard(
     public async Task<decimal> EstimateResponseCostAsync(
         AiModelResponse response,
         AgenticChatOptions options,
+        AgenticBudgetFallbackState fallbackState,
         CancellationToken cancellationToken)
     {
         try
@@ -36,13 +39,35 @@ internal sealed class AgenticBudgetGuard(
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
+            LogFallback(fallbackState, "estimator_failed", exception.GetType().Name);
             return EstimateFallbackCost(response.Usage?.TotalTokens, options);
         }
 
+        LogFallback(fallbackState, "pricing_unavailable", null);
         return EstimateFallbackCost(response.Usage?.TotalTokens, options);
     }
+
+    private void LogFallback(AgenticBudgetFallbackState state, string reason, string? exceptionType)
+    {
+        if (state.TryMark())
+        {
+            LogFallbackUsed(logger, state.ConversationId, state.CorrelationId, reason, exceptionType);
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 4002,
+        EventName = "AgenticBudgetFallbackUsed",
+        Level = LogLevel.Warning,
+        Message = "Agentic budget fallback used for conversation {ConversationId}, correlation {CorrelationId}: {Reason} ({ExceptionType})")]
+    private static partial void LogFallbackUsed(
+        ILogger logger,
+        Guid conversationId,
+        string correlationId,
+        string reason,
+        string? exceptionType);
 
     private static decimal EstimateFallbackCost(
         int? totalTokens,

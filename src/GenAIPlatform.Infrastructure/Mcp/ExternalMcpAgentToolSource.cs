@@ -1,8 +1,11 @@
 using GenAIPlatform.Application.Agentic.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-internal sealed class ExternalMcpAgentToolSource(IExternalMcpConnectionManager connectionManager)
+internal sealed class ExternalMcpAgentToolSource(
+    IExternalMcpConnectionManager connectionManager,
+    ILoggerFactory loggerFactory)
     : IExternalAgentToolSource
 {
     public IReadOnlyList<IAgentTool> GetAvailableTools()
@@ -14,7 +17,8 @@ internal sealed class ExternalMcpAgentToolSource(IExternalMcpConnectionManager c
             .SelectMany(static snapshot => snapshot.Tools.OrderBy(
                 static tool => tool.PrefixedName,
                 StringComparer.Ordinal))
-            .Select(tool => new ExternalMcpAgentTool(connectionManager, tool))
+            .Select(tool => new ExternalMcpAgentTool(
+                connectionManager, tool, loggerFactory.CreateLogger<ExternalMcpAgentTool>()))
             .ToArray();
     }
 }

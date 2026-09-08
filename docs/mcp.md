@@ -104,6 +104,15 @@ Caller cancellation after dispatch follows the same uncertainty rule. The govern
 
 The wrapper and its validation schema are frozen for an agentic chat session. A later mutation of a listed descriptor cannot change that session's validation contract or audit snapshot hash. This is not remote attestation: reconnecting to a server does not re-list or prove that its implementation still matches the captured schema.
 
+Exceptions swallowed by the tool wrapper emit warning 4001,
+`ExternalMcpToolExecutionFailed`, including cancellation not requested by the
+caller. Its only data fields are sanitized `ServerName` and `ToolName` (each
+capped at 64 ASCII characters) and `ExceptionType`. It receives no exception
+object, raw exception message, arguments, result or schema. Caller cancellation
+preserves the propagation and post-dispatch audit rules above without this
+warning. Transport failures already converted to unknown outcomes remain covered
+by connection-manager lifecycle diagnostics. Logging does not trigger replay.
+
 This starter-kit release does not claim production-ready remote MCP authentication, secret storage or enterprise connector management. External stdio server configuration is a local/sample adapter pattern; production credential handling and remote multi-tenant MCP are future work.
 
 The main gate uses fake external tool sources and adapter-level fakes for deterministic coverage. It does not rely on real child-process MCP servers such as `npx` during automated tests.

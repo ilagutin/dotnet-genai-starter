@@ -1,13 +1,15 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Documents;
 using GenAIPlatform.Infrastructure.Postgres;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Retrieval;
 
-internal sealed class PostgresRagSearchExecutor(
+internal sealed partial class PostgresRagSearchExecutor(
     PostgresRagConnectionFactory connectionFactory,
-    RagVectorSearchErrorMapper errorMapper)
+    RagVectorSearchErrorMapper errorMapper,
+    ILogger<PostgresRagSearchExecutor> logger)
 {
     public async Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
         RagVectorSearchQuery query,
@@ -47,27 +49,30 @@ internal sealed class PostgresRagSearchExecutor(
         }
         catch (PostgresException exception)
         {
-            throw errorMapper.MapPostgres(exception);
+            throw LogInfrastructureFailure(errorMapper.MapPostgres(exception), exception);
         }
         catch (NpgsqlException exception)
         {
-            throw errorMapper.Unavailable(exception);
+            throw LogInfrastructureFailure(errorMapper.Unavailable(exception), exception);
         }
         catch (TimeoutException exception)
         {
-            throw errorMapper.Unavailable(exception);
-        }
-        catch (ArgumentException exception)
-        {
-            throw errorMapper.Unavailable(exception);
-        }
-        catch (InvalidOperationException exception)
-        {
-            throw errorMapper.QueryFailed(
-                "RAG retrieval query failed.",
-                exception);
+            throw LogInfrastructureFailure(errorMapper.Unavailable(exception), exception);
         }
     }
+
+    private RagVectorSearchException LogInfrastructureFailure(RagVectorSearchException mapped, Exception exception)
+    {
+        LogSearchFailed(logger, mapped.ErrorCode, exception.GetType().Name);
+        return mapped;
+    }
+
+    [LoggerMessage(
+        EventId = 5001,
+        EventName = "RagSearchInfrastructureFailure",
+        Level = LogLevel.Warning,
+        Message = "RAG search infrastructure failure: {ErrorCode} ({ExceptionType})")]
+    private static partial void LogSearchFailed(ILogger logger, string? errorCode, string exceptionType);
 
     private static NpgsqlCommand CreateSearchCommand(
         NpgsqlConnection connection,
