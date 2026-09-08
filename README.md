@@ -17,9 +17,11 @@ flowchart LR
     Api --> Modules["Application modules"]
     Worker["GenAIPlatform.Worker"] --> Knowledge["Core + Knowledge"]
     Evaluations["GenAIPlatform.Evaluations CLI"] --> EvalModules["Core + Knowledge + Generation + Evaluations"]
+    Mcp["GenAIPlatform.Mcp (local stdio host)"] --> McpModules["Core + Knowledge + Generation + Agentic + Usage"]
     Modules --> Domain["GenAIPlatform.Domain"]
     Knowledge --> Domain
     EvalModules --> Domain
+    McpModules --> Domain
     Infrastructure["GenAIPlatform.Infrastructure"] --> Modules
     Infrastructure --> Postgres["PostgreSQL + pgvector"]
     Infrastructure --> Storage["Local document storage"]
@@ -28,7 +30,7 @@ flowchart LR
 
 The project uses Clean Architecture with CQRS-lite where it improves clarity. API endpoints stay thin, Application modules own use cases and ports, Domain stays provider-agnostic, Infrastructure implements persistence/provider adapters, and Worker runs background jobs through the Core and Knowledge modules.
 
-`GenAIPlatform.Mcp` adds a local stdio MCP host as the fourth consumption surface: REST for HTTP callers, Worker for background jobs, the Evaluations CLI for offline runs and MCP for AI clients. It exposes a bounded read-only tool set over existing Application use cases, including one governed safe Agentic tool that still goes through backend policy and audit.
+`GenAIPlatform.Mcp` adds a local stdio MCP host as the fourth consumption surface: REST for HTTP callers, Worker for background jobs, the Evaluations CLI for offline runs and MCP for AI clients. It composes Core, Knowledge, Generation, Agentic and Usage, and exposes a bounded read-only tool set over existing Application use cases, including one governed safe Agentic tool that still goes through backend policy and audit.
 
 External MCP servers are consumed separately by Infrastructure as Agentic tool sources. Their tools are not exposed through the local MCP host as a generic executor; they appear in the platform's agentic loop only after allow-listing, snapshotting, name prefixing and backend approval policy.
 
