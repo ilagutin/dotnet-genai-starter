@@ -9,10 +9,6 @@ limited to 400 aggregate lines across partial declarations; duplicate and status
 only to production code. This recognizes that integration fixtures often need more readable setup than
 production code, while still preventing either area from growing without review.
 
-Until BL-028 extracts the nine existing oversized test fixtures, the gate reports each named debt path
-on every successful run and enforces its current ceiling. All other test files fail above 800 lines;
-the transitional map must be removed once every test file meets the normal limit.
-
 ## Size Guardrails
 
 - A production class should stay under 400 physical lines. If it exceeds that limit, the code should be split unless the file is a simple composition root, generated code, a framework-required shape, or another clearly justified exception.
@@ -191,7 +187,7 @@ Rationale: the API exception handler depends only on Application and Domain exce
 Before merging a change, check:
 
 - Does any production class exceed 400 lines without a clear reason?
-- Does any test file exceed 800 lines, or a documented temporary transitional ceiling before BL-028?
+- Does any test file exceed 800 lines?
 - Does any method mix unrelated workflow stages?
 - Does each file contain one entity?
 - Are command/query, handler, validator and response types placed under a feature/action folder?

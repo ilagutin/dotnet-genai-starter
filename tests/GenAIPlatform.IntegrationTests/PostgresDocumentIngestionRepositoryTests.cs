@@ -1,16 +1,14 @@
-using System.Runtime.CompilerServices;
 using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Documents;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace GenAIPlatform.IntegrationTests;
 
 [Collection(PostgresRepositoryCollection.CollectionName)]
-public sealed class PostgresDocumentIngestionRepositoryTests(
+public sealed partial class PostgresDocumentIngestionRepositoryTests(
     PostgresRepositoryFixture postgres)
 {
     [DockerAvailableFact]
@@ -265,7 +263,7 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
-        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        await Task.Delay(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken);
         var retryClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
@@ -722,110 +720,4 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
         DateTimeOffset? StartedAtUtc,
         DateTimeOffset? CompletedAtUtc,
         int Attempts);
-}
-
-[CollectionDefinition("PostgreSQL repository", DisableParallelization = true)]
-public sealed class PostgresRepositoryCollection
-    : ICollectionFixture<PostgresRepositoryFixture>
-{
-    public const string CollectionName = "PostgreSQL repository";
-}
-
-public sealed class PostgresRepositoryFixture : IAsyncLifetime
-{
-    private PostgreSqlContainer? container;
-    private bool started;
-
-    public ValueTask InitializeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (started)
-        {
-            await container!.DisposeAsync();
-        }
-    }
-
-    public async Task<string> GetConnectionStringAsync()
-    {
-        if (!started)
-        {
-            container ??= new PostgreSqlBuilder("pgvector/pgvector:pg16")
-                .WithDatabase("genai_platform_tests")
-                .WithUsername("genai")
-                .WithPassword("genai_dev_password")
-                .Build();
-            await container.StartAsync();
-            started = true;
-        }
-
-        return container!.GetConnectionString();
-    }
-}
-
-public sealed class DockerAvailableFactAttribute : FactAttribute
-{
-    public DockerAvailableFactAttribute(
-        [CallerFilePath] string sourceFilePath = "",
-        [CallerLineNumber] int sourceLineNumber = 0)
-        : base(sourceFilePath, sourceLineNumber)
-    {
-        if (!IsDockerEndpointLikelyAvailable() && !IsDockerRequiredEnvironment())
-        {
-            Skip = "Docker is not available for PostgreSQL integration tests.";
-        }
-    }
-
-    private static bool IsDockerEndpointLikelyAvailable()
-    {
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DOCKER_HOST")))
-        {
-            return true;
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            return CanConnectToNamedPipe("docker_engine") ||
-                   CanConnectToNamedPipe("dockerDesktopLinuxEngine");
-        }
-
-        return File.Exists("/var/run/docker.sock") ||
-               File.Exists(Path.Combine(
-                   Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                   ".docker/run/docker.sock"));
-    }
-
-    private static bool CanConnectToNamedPipe(string pipeName)
-    {
-        try
-        {
-            using var pipe = new System.IO.Pipes.NamedPipeClientStream(
-                ".",
-                pipeName,
-                System.IO.Pipes.PipeDirection.InOut);
-            pipe.Connect(100);
-            return pipe.IsConnected;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool IsDockerRequiredEnvironment()
-    {
-        return IsTruthy(Environment.GetEnvironmentVariable("CI")) ||
-               IsTruthy(Environment.GetEnvironmentVariable("GENAI_REQUIRE_DOCKER_TESTS"));
-    }
-
-    private static bool IsTruthy(string? value)
-    {
-        return value is not null &&
-               (value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("yes", StringComparison.OrdinalIgnoreCase));
-    }
 }

@@ -45,7 +45,7 @@ Application owns use cases, ports, orchestration, validation and pipeline behavi
 
 ## Code organization
 
-- Production files: 400 lines; test files: 800. Remove named temporary test-debt ceilings by BL-028.
+- Production files: 400 lines; test files: 800.
 - One class, record, struct, enum or interface per file.
 - Use feature/action folders: `Command.cs` or `Query.cs`, `Handler.cs`, `Validator.cs`, `Normalizer.cs` when needed and `Response.cs`.
 - Handlers orchestrate; parsing, rendering, policy, persistence and provider detail use named collaborators. Endpoints bind, dispatch and map only. Business validation belongs in validators/named policies; centralize public error/HTTP mapping and prefer typed options/constants and explicit names.

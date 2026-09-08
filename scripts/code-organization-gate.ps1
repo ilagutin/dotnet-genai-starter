@@ -11,17 +11,6 @@ $sourceRoots = @(
     [pscustomobject]@{ Path = Join-Path $repoRoot "src"; Kind = "production" },
     [pscustomobject]@{ Path = Join-Path $repoRoot "tests"; Kind = "test" }
 )
-$transitionalTestLineLimits = @{
-    "tests/GenAIPlatform.UnitTests/DocumentIngestionTests.cs" = 2566
-    "tests/GenAIPlatform.IntegrationTests/PostgresRagVectorSearchStoreTests.cs" = 1128
-    "tests/GenAIPlatform.IntegrationTests/ApiV1EndpointTests.cs" = 1110
-    "tests/GenAIPlatform.UnitTests/AgenticChatHandlerTests.cs" = 1063
-    "tests/GenAIPlatform.UnitTests/RagChatHandlerTests.cs" = 1026
-    "tests/GenAIPlatform.UnitTests/EvaluationRunHandlerTests.cs" = 956
-    "tests/GenAIPlatform.UnitTests/ExternalAgenticToolGovernanceTests.cs" = 928
-    "tests/GenAIPlatform.IntegrationTests/DocumentEndpointTests.cs" = 906
-    "tests/GenAIPlatform.IntegrationTests/PostgresDocumentIngestionRepositoryTests.cs" = 833
-}
 # Only these compatibility mappings may contain stable status literals.
 $statusMappingPaths = @(
     "src/GenAIPlatform.Domain/Agentic/Statuses/AgenticChatStatusMapping.cs",
@@ -94,9 +83,6 @@ foreach ($sourceRoot in $sourceRoots) {
         $limit = if ($sourceRoot.Kind -eq "production") {
             $MaxProductionFileLines
         }
-        elseif ($transitionalTestLineLimits.ContainsKey($relativePath)) {
-            $transitionalTestLineLimits[$relativePath]
-        }
         else {
             $MaxTestFileLines
         }
@@ -159,10 +145,6 @@ foreach ($entry in $typeFiles.GetEnumerator()) {
 }
 
 Write-Output "Code organization gate: scanned $($scannedFiles.Count) authored C# file(s): $(@($scannedFiles | Where-Object Kind -eq 'production').Count) production, $(@($scannedFiles | Where-Object Kind -eq 'test').Count) test."
-Write-Output "Code organization gate: transitional test debt (remove in BL-028):"
-foreach ($path in $transitionalTestLineLimits.Keys | Sort-Object) {
-    Write-Output "  ${path}: ceiling $($transitionalTestLineLimits[$path]) lines"
-}
 
 if ($findings.Count -eq 0) {
     Write-Output "Code organization gate: no findings."
