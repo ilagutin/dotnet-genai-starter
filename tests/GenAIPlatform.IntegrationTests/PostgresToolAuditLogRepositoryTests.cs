@@ -1,5 +1,7 @@
 using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
+using GenAIPlatform.Application.Agentic.Validation;
+using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
@@ -166,6 +168,64 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             entry.ErrorCode == "budget_exceeded");
     }
 
+    [DockerAvailableFact]
+    public async Task ToolAuditLogPersistence_SchemaInvalidRoundTripContainsOnlyBoundedSchemaPath()
+    {
+        const string secretKey = "syntheticSecretKey";
+        const string secretValue = "synthetic-secret-value";
+        using var scope = await CreateScopeAsync();
+        await CleanToolAuditTableAsync(scope.ConnectionString);
+        var repository = scope.Services.GetRequiredService<IToolAuditLogRepository>();
+        var tool = new SchemaValidationProbeTool();
+        using var rawArguments = JsonDocument.Parse(
+            $$"""{"{{secretKey}}":"{{secretValue}}"}""");
+        var validation = new AgentToolArgumentValidator().Validate(tool, rawArguments.RootElement);
+        var id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+
+        Assert.False(validation.IsValid);
+        Assert.Equal("schema_invalid", validation.ErrorCode);
+        Assert.Equal(0, tool.SemanticValidationCalls);
+
+        await repository.AddAsync(
+            new ToolAuditLogEntry(
+                id,
+                Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+                "tenant-a",
+                "alice",
+                "schema-audit-test",
+                "call-schema-invalid",
+                "GetCurrentUserProfile",
+                "v1",
+                "tool-policy-v1",
+                "Invalid",
+                "Allowed",
+                "NotRequired",
+                "ValidationFailed",
+                validation.SanitizedArguments,
+                Output: null,
+                validation.ErrorCode,
+                validation.ErrorMessage,
+                DateTimeOffset.Parse("2026-09-08T12:00:00Z")),
+            TestContext.Current.CancellationToken);
+
+        var persisted = await ReadAuditEntryAsync(scope.ConnectionString, id);
+
+        Assert.Equal("Invalid", persisted.ValidationStatus);
+        Assert.Equal("ValidationFailed", persisted.ExecutionStatus);
+        Assert.Equal("schema_invalid", persisted.ErrorCode);
+        Assert.Equal("{}", persisted.ArgumentsJson);
+        Assert.Null(persisted.OutputJson);
+        Assert.Equal(validation.ErrorMessage, persisted.ErrorMessage);
+        Assert.InRange(persisted.ErrorMessage!.Length, 1, 256);
+        var storedText = string.Join('|',
+            persisted.ArgumentsJson,
+            persisted.OutputJson,
+            persisted.ErrorCode,
+            persisted.ErrorMessage);
+        Assert.DoesNotContain(secretKey, storedText, StringComparison.Ordinal);
+        Assert.DoesNotContain(secretValue, storedText, StringComparison.Ordinal);
+    }
+
     private static ToolAuditLogEntry CreateEntry(
         Guid id,
         Guid conversationId,
@@ -237,7 +297,7 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         await using var command = new NpgsqlCommand("""
             SELECT conversation_id, tenant_id, user_id, tool_call_id, tool_name, schema_version,
                    policy_version, validation_status, policy_decision, approval_state,
-                   execution_status, arguments::text, output::text, error_code
+                   execution_status, arguments::text, output::text, error_code, error_message
             FROM genai.tool_audit_logs
             WHERE id = @id;
             """, connection);
@@ -263,7 +323,8 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             reader.GetString(10),
             reader.GetString(11),
             reader.IsDBNull(12) ? null : reader.GetString(12),
-            reader.IsDBNull(13) ? null : reader.GetString(13));
+            reader.IsDBNull(13) ? null : reader.GetString(13),
+            reader.IsDBNull(14) ? null : reader.GetString(14));
     }
 
     private static async Task<IReadOnlyList<PersistedToolAuditEntry>> ReadAuditEntriesAsync(
@@ -275,7 +336,7 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         await using var command = new NpgsqlCommand("""
             SELECT conversation_id, tenant_id, user_id, tool_call_id, tool_name, schema_version,
                    policy_version, validation_status, policy_decision, approval_state,
-                   execution_status, arguments::text, output::text, error_code
+                   execution_status, arguments::text, output::text, error_code, error_message
             FROM genai.tool_audit_logs
             WHERE conversation_id = @conversation_id
             ORDER BY tool_call_id;
@@ -300,7 +361,8 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
                 reader.GetString(10),
                 reader.GetString(11),
                 reader.IsDBNull(12) ? null : reader.GetString(12),
-                reader.IsDBNull(13) ? null : reader.GetString(13)));
+                reader.IsDBNull(13) ? null : reader.GetString(13),
+                reader.IsDBNull(14) ? null : reader.GetString(14)));
         }
 
         return entries;
@@ -314,6 +376,44 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         public void Dispose()
         {
             Services.Dispose();
+        }
+    }
+
+    private sealed class SchemaValidationProbeTool : IAgentTool
+    {
+        public AiToolDefinition Definition { get; } = new(
+            "SchemaValidationProbe",
+            "Integration-test schema probe.",
+            "v1",
+            Json("""
+            {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+            """));
+
+        public ToolPolicyMetadata Policy { get; } = ToolPolicyMetadata.Allowed("Integration-test probe.");
+
+        public int SemanticValidationCalls { get; private set; }
+
+        public ToolValidationResult Validate(JsonElement arguments)
+        {
+            SemanticValidationCalls++;
+            return ToolValidationResult.Valid(arguments.Clone());
+        }
+
+        public Task<ToolExecutionResult> ExecuteAsync(
+            JsonElement sanitizedArguments,
+            CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("The schema-invalid probe must not execute.");
+        }
+
+        private static JsonElement Json(string json)
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.Clone();
         }
     }
 
@@ -331,5 +431,6 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         string ExecutionStatus,
         string ArgumentsJson,
         string? OutputJson,
-        string? ErrorCode);
+        string? ErrorCode,
+        string? ErrorMessage);
 }

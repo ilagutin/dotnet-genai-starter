@@ -11,6 +11,9 @@ public interface IAgentTool
 
     ToolPolicyMetadata Policy { get; }
 
+    /// <summary>
+    /// Applies tool-specific semantic normalization after the declared schema has accepted the payload.
+    /// </summary>
     ToolValidationResult Validate(JsonElement arguments);
 
     Task<ToolExecutionResult> ExecuteAsync(

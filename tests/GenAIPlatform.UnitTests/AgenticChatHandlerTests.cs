@@ -99,13 +99,53 @@ public sealed class AgenticChatHandlerTests
         Assert.Equal("GetCurrentUserProfile", result.ToolName);
         Assert.Equal("Allowed", result.PolicyDecision);
         Assert.Equal(ToolExecutionStatus.ValidationFailed, result.ExecutionStatus);
-        Assert.Equal("invalid_arguments", result.ErrorCode);
+        Assert.Equal("schema_invalid", result.ErrorCode);
         var auditEntry = Assert.Single(audit.Entries);
         Assert.Equal("Invalid", auditEntry.ValidationStatus);
         Assert.Equal("Allowed", auditEntry.PolicyDecision);
         Assert.Equal("ValidationFailed", auditEntry.ExecutionStatus);
-        Assert.Equal("invalid_arguments", auditEntry.ErrorCode);
+        Assert.Equal("schema_invalid", auditEntry.ErrorCode);
         Assert.Null(auditEntry.Output);
+    }
+
+    [Fact]
+    public async Task HandleAsync_SchemaInvalidPayloadDoesNotExposeArgumentNamesOrValues()
+    {
+        const string secretKey = "syntheticSecretKey";
+        const string secretValue = "synthetic-secret-value";
+        var audit = new CapturingToolAuditLogRepository();
+        var logger = new TestLogger<AgentToolExecutor>();
+        var handler = CreateHandler(
+            new SequenceModelClient([
+                ResponseWithTool("GetCurrentUserProfile", $$"""{"{{secretKey}}":"{{secretValue}}"}""")
+            ]),
+            audit,
+            toolExecutorLogger: logger);
+
+        var response = await handler.DispatchAsync<AgenticChatCommand, AgenticChatResponse>(
+            new AgenticChatCommand("Use my profile.", CorrelationId: "agent-schema-secret"),
+            CancellationToken.None);
+
+        var result = Assert.Single(response.ToolResults);
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal("schema_invalid", result.ErrorCode);
+        Assert.Equal(ToolExecutionStatus.ValidationFailed, result.ExecutionStatus);
+        Assert.Equal("Invalid", entry.ValidationStatus);
+        Assert.Equal("ValidationFailed", entry.ExecutionStatus);
+        Assert.Equal("{}", entry.Arguments.GetRawText());
+        Assert.Null(entry.Output);
+        Assert.InRange(entry.ErrorMessage!.Length, 1, 256);
+        var exposedText = string.Join('|', new[]
+        {
+            result.ErrorCode,
+            result.Result,
+            entry.ErrorCode,
+            entry.ErrorMessage,
+            entry.Arguments.GetRawText(),
+            entry.Output?.GetRawText()
+        }.Concat(logger.Entries.Select(static log => log.Message)));
+        Assert.DoesNotContain(secretKey, exposedText, StringComparison.Ordinal);
+        Assert.DoesNotContain(secretValue, exposedText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -181,13 +221,15 @@ public sealed class AgenticChatHandlerTests
     public async Task HandleAsync_RejectsForbiddenToolBeforeExecution()
     {
         var audit = new CapturingToolAuditLogRepository();
+        var logger = new TestLogger<AgentToolExecutor>();
         var handler = CreateHandler(
             new SequenceModelClient([
                 ResponseWithTools(
                     ("call-1", "DeleteDocument", """{"documentId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}"""),
-                    ("call-2", "GetCurrentUserProfile", "{}"))
+                    ("call-2", "GetCurrentUserProfile", """{"syntheticSecretKey":"synthetic-secret-value"}"""))
             ]),
-            audit);
+            audit,
+            toolExecutorLogger: logger);
 
         var response = await handler.DispatchAsync<AgenticChatCommand, AgenticChatResponse>(
             new AgenticChatCommand("Delete a document.", CorrelationId: "agent-test"),
@@ -203,8 +245,25 @@ public sealed class AgenticChatHandlerTests
         Assert.Equal("call-1", audit.Entries[0].ToolCallId);
         Assert.Equal("Rejected", audit.Entries[0].ExecutionStatus);
         Assert.Equal("call-2", audit.Entries[1].ToolCallId);
-        Assert.Equal("NotExecuted", audit.Entries[1].ExecutionStatus);
-        Assert.Equal("prior_tool_rejected", audit.Entries[1].ErrorCode);
+        Assert.Equal("Invalid", audit.Entries[1].ValidationStatus);
+        Assert.Equal("ValidationFailed", audit.Entries[1].ExecutionStatus);
+        Assert.Equal("schema_invalid", audit.Entries[1].ErrorCode);
+        Assert.Equal("{}", audit.Entries[1].Arguments.GetRawText());
+        Assert.Null(audit.Entries[1].Output);
+        var exposedText = string.Join('|',
+            audit.Entries.SelectMany(static entry => new[]
+            {
+                entry.ErrorCode,
+                entry.ErrorMessage,
+                entry.Arguments.GetRawText(),
+                entry.Output?.GetRawText()
+            }).Concat(response.ToolResults.SelectMany(static result => new[]
+            {
+                result.ErrorCode,
+                result.Result
+            })).Concat(logger.Entries.Select(static entry => entry.Message)));
+        Assert.DoesNotContain("syntheticSecretKey", exposedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic-secret-value", exposedText, StringComparison.Ordinal);
     }
 
     [Fact]

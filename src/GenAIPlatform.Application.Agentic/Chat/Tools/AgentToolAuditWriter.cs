@@ -8,7 +8,8 @@ namespace GenAIPlatform.Application.Agentic.Chat;
 
 internal sealed class AgentToolAuditWriter(
     AgentToolAuditLogWriter auditLogWriter,
-    ToolPolicy toolPolicy)
+    ToolPolicy toolPolicy,
+    AgentToolArgumentValidator argumentValidator)
 {
     public async Task AuditSkippedToolCallsAsync(
         AgenticChatSession session,
@@ -22,8 +23,9 @@ internal sealed class AgentToolAuditWriter(
             var tool = FindTool(
                 session.Tools,
                 toolCall.Name);
-            var validation = tool?.Validate(toolCall.Arguments)
-                ?? ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
+            var validation = tool is not null
+                ? argumentValidator.Validate(tool, toolCall.Arguments)
+                : ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
             var policy = toolPolicy.Decide(tool?.Policy, toolCall.Name);
 
             await auditLogWriter.WriteAsync(
@@ -49,6 +51,9 @@ internal sealed class AgentToolAuditWriter(
         string? errorCode,
         string? errorMessage)
     {
+        var validationFailed = tool is not null &&
+            policy.Risk != ToolRisk.Forbidden &&
+            !validation.IsValid;
         return new AgentToolExecutionResult(
             toolCall.Id,
             toolCall.Name,
@@ -57,10 +62,10 @@ internal sealed class AgentToolAuditWriter(
             validation,
             policy,
             ToolApprovalState.NotRequired,
-            executionStatus,
+            validationFailed ? ToolExecutionStatus.ValidationFailed : executionStatus,
             null,
-            errorCode,
-            errorMessage);
+            validationFailed ? validation.ErrorCode : errorCode,
+            validationFailed ? validation.ErrorMessage : errorMessage);
     }
 
     private static AgentToolExecutionContext CreateContext(AgenticChatSession session)

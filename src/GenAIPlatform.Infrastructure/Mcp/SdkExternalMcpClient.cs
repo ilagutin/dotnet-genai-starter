@@ -12,7 +12,7 @@ internal sealed class SdkExternalMcpClient(McpClient client) : IExternalMcpClien
             .Select(static tool => new ExternalMcpToolDescriptor(
                 tool.ProtocolTool.Name,
                 tool.ProtocolTool.Description,
-                ExternalMcpJsonRoundTrip.CloneObjectSchema(tool.ProtocolTool.InputSchema)))
+                ExternalMcpJsonRoundTrip.CloneSchema(tool.ProtocolTool.InputSchema)))
             .ToArray();
     }
 

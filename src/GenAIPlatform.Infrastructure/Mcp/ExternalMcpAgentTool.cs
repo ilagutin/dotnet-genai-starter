@@ -21,14 +21,7 @@ internal sealed class ExternalMcpAgentTool(
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        if (arguments.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-        {
-            return ToolValidationResult.Valid(ExternalMcpJsonRoundTrip.EmptyObject());
-        }
-
-        return arguments.ValueKind == JsonValueKind.Object
-            ? ToolValidationResult.Valid(arguments.Clone())
-            : ToolValidationResult.Invalid("invalid_arguments", "External MCP tools expect a JSON object argument.");
+        return ToolValidationResult.Valid(arguments.Clone());
     }
 
     public async Task<ToolExecutionResult> ExecuteAsync(

@@ -7,7 +7,8 @@ but deterministic backend code decides whether they run.
 
 ```text
 LLM proposes tool call
--> backend runs the tool's manual shape and semantic validation
+-> backend validates the frozen declared schema as Draft 2020-12
+-> backend runs tool-specific semantic normalization
 -> policy layer evaluates registered metadata and risk
 -> allowed tool executes
 -> approval-required tool executes only with the request's simulated approval flag
@@ -47,14 +48,29 @@ single-use, second-principal approval workflow.
 
 ## Validation And Schemas
 
-Tool definitions declare versioned JSON Schema for model planning. Current
-built-in `Validate` methods enforce manual shape and semantic checks before
-execution and return sanitized arguments to the executor. The declared JSON
-Schema is not yet applied as a common runtime enforcement mechanism. In
-particular, `ExternalMcpAgentTool` accepts a missing/null value as an empty
-object and otherwise accepts any JSON object; it does not validate the payload
-against `ExternalMcpToolSnapshot.InputSchema`. General JSON Schema enforcement,
-including external snapshot-schema validation, is deferred to BL-019.
+Tool definitions declare versioned JSON Schema for model planning and runtime
+enforcement. One Application validator serves governed execution and audit of
+skipped registered calls. It builds every schema explicitly as Draft 2020-12
+with fresh registries and no network fetch callback, then uses list-form
+evaluation. Schema validation runs before tool-specific semantic normalization,
+policy outcome, simulated approval and execution. Forbidden and unknown policy
+outcomes still fail closed with their existing public results; for a registered
+approval-required tool, an invalid payload returns `schema_invalid` before any
+approval check.
+
+The validator rejects untrusted or unbounded schema definitions before
+evaluation. Schemas and argument payloads are limited to 64 KiB of UTF-8 JSON,
+JSON depth is limited to 32, and schemas are limited to 256 JSON nodes.
+Non-fragment references, `pattern` and `patternProperties` are unsupported;
+local fragment references such as `#/$defs/value` remain available. A declared
+non-2020-12 dialect, malformed schema or unsupported schema definition fails
+closed as `schema_definition_invalid`. A payload that does not match an
+accepted schema fails as `schema_invalid`.
+
+Validation errors contain only the first failing schema `EvaluationPath` in
+ordinal order. The complete stored message is printable/control-normalized and
+limited to 256 characters. Library error text, argument instance paths and raw
+argument names or values are not included.
 
 ## Audit Log
 
@@ -67,6 +83,11 @@ metadata-only or redaction-only audit boundary because the repository persists
 the validation result's sanitized arguments and output as JSONB. That
 audit-boundary redesign is
 deferred to BL-020.
+
+Schema-invalid rows are a narrower safety exception to that current projection:
+they store `Invalid` validation, `ValidationFailed` execution,
+`schema_invalid`, `{}` sanitized arguments, null output and only the bounded
+schema-owned error path described above.
 
 ## Requirements
 
@@ -88,10 +109,12 @@ deferred to BL-020.
 | `GetCurrentUserProfile` is an allowed read-only profile lookup. | `src/GenAIPlatform.Application.Agentic/Tools/GetCurrentUserProfileTool.cs` | `GetCurrentUserProfileTool.Policy`, `GetCurrentUserProfileTool.ExecuteAsync` |
 | `CreateSupportTicket` is allowed and returns a deterministic demo ticket result. | `src/GenAIPlatform.Application.Agentic/Tools/CreateSupportTicketTool.cs` | `CreateSupportTicketTool.Policy`, `CreateSupportTicketTool.ExecuteAsync` |
 | `DraftEmail` is approval-required and returns a local draft result with `sent = false`. | `src/GenAIPlatform.Application.Agentic/Tools/DraftEmailTool.cs` | `DraftEmailTool.Policy`, `DraftEmailTool.ExecuteAsync` |
-| Built-in tools declare model-facing JSON Schema and perform manual validation. | `src/GenAIPlatform.Application.Agentic/Tools/DraftEmailTool.cs` | `DraftEmailTool.Definition`, `DraftEmailTool.Validate` |
-| Built-in support-ticket validation includes semantic priority validation. | `src/GenAIPlatform.Application.Agentic/Tools/CreateSupportTicketTool.cs` | `CreateSupportTicketTool.Validate` |
-| No common declared-JSON-Schema runtime enforcement exists in this execution path; it invokes the selected tool's `Validate` method. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/GovernedAgentToolExecutor.cs` | `GovernedAgentToolExecutor.ExecuteAsync` |
-| External MCP payloads are only constrained to an object and are not checked against the snapshot schema. | `src/GenAIPlatform.Infrastructure/Mcp/ExternalMcpAgentTool.cs` | `ExternalMcpAgentTool.Validate` |
+| Built-in tools declare model-facing JSON Schema and retain semantic normalization after common schema validation. | `src/GenAIPlatform.Application.Agentic/Tools/DraftEmailTool.cs` | `DraftEmailTool.Definition`, `DraftEmailTool.Validate` |
+| Built-in support-ticket validation trims nonblank text and supplies the default `normal` priority after schema enforcement. | `src/GenAIPlatform.Application.Agentic/Tools/CreateSupportTicketTool.cs` | `CreateSupportTicketTool.Validate` |
+| Common Draft 2020-12 validation enforces bounded schemas and arguments without remote resolution and returns bounded schema-owned errors. | `src/GenAIPlatform.Application.Agentic/Validation/AgentToolArgumentValidator.cs` | `AgentToolArgumentValidator.Validate` |
+| Governed execution applies common schema validation before semantic validation, policy outcome, approval and execution. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/GovernedAgentToolExecutor.cs` | `GovernedAgentToolExecutor.ExecuteAsync` |
+| Skipped registered calls use the same common schema and semantic validation path before audit. | `src/GenAIPlatform.Application.Agentic/Chat/Tools/AgentToolAuditWriter.cs` | `AgentToolAuditWriter.AuditSkippedToolCallsAsync` |
+| External MCP execution uses the frozen snapshot schema exposed by its wrapper definition. | `src/GenAIPlatform.Infrastructure/Mcp/ExternalMcpAgentTool.cs` | `ExternalMcpAgentTool.Definition` |
 | Every available external MCP tool is assigned approval-required policy. | `src/GenAIPlatform.Infrastructure/Mcp/ExternalMcpAgentTool.cs` | `ExternalMcpAgentTool.Policy` |
 | The API maps `approveRiskyTools` to one Boolean command field, which the handler retains in the session and executor context. | `src/GenAIPlatform.Api/Endpoints/V1/Chat/ChatEndpoints.cs` | `ChatEndpoints.CreateAgenticChatCompletion` |
 | The command, session and execution context each carry `ApproveRiskyTools` as a Boolean rather than a per-call approval object. | `src/GenAIPlatform.Application.Agentic/Chat/Command.cs` | `AgenticChatCommand.ApproveRiskyTools` |

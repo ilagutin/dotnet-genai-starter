@@ -71,6 +71,91 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
+    public async Task RefreshAsync_OmitsMissingSchemaUnlessExactSchemalessExceptionIsConfigured()
+    {
+        var omittedClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var omittedFactory = new FakeExternalMcpClientFactory();
+        omittedFactory.SetClient("Server", omittedClient);
+        var omittedManager = CreateManager(omittedFactory, Server("Server", allowedTools: ["echo"]));
+        await omittedManager.RefreshAsync(CancellationToken.None);
+
+        Assert.Empty(new ExternalMcpAgentToolSource(omittedManager).GetAvailableTools());
+
+        var allowedClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var allowedFactory = new FakeExternalMcpClientFactory();
+        allowedFactory.SetClient("Server", allowedClient);
+        var allowedManager = CreateManager(
+            allowedFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await allowedManager.RefreshAsync(CancellationToken.None);
+
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(allowedManager).GetAvailableTools());
+        Assert.Equal("object", tool.Definition.InputSchema.GetProperty("type").GetString());
+        Assert.True(tool.Policy.RequiresApproval);
+        Assert.True(Assert.Single(Assert.Single(allowedManager.GetSnapshots()).Tools).IsSchemaless);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_SchemalessFlagParticipatesInSnapshotHashAndNeverMasksPresentSchema()
+    {
+        var missingClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var missingFactory = new FakeExternalMcpClientFactory();
+        missingFactory.SetClient("Server", missingClient);
+        var missingManager = CreateManager(
+            missingFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await missingManager.RefreshAsync(CancellationToken.None);
+        var schemaless = Assert.Single(Assert.Single(missingManager.GetSnapshots()).Tools);
+
+        var presentClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", "{\"type\":\"object\"}"));
+        var presentFactory = new FakeExternalMcpClientFactory();
+        presentFactory.SetClient("Server", presentClient);
+        var presentManager = CreateManager(
+            presentFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await presentManager.RefreshAsync(CancellationToken.None);
+        var present = Assert.Single(Assert.Single(presentManager.GetSnapshots()).Tools);
+
+        Assert.True(schemaless.IsSchemaless);
+        Assert.False(present.IsSchemaless);
+        Assert.NotEqual(schemaless.SnapshotHash, present.SnapshotHash);
+
+        var malformedClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", "[]"));
+        var malformedFactory = new FakeExternalMcpClientFactory();
+        malformedFactory.SetClient("Server", malformedClient);
+        var malformedManager = CreateManager(
+            malformedFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await malformedManager.RefreshAsync(CancellationToken.None);
+        var malformed = Assert.Single(Assert.Single(malformedManager.GetSnapshots()).Tools);
+
+        Assert.False(malformed.IsSchemaless);
+        Assert.Equal(JsonValueKind.Array, malformed.InputSchema.ValueKind);
+    }
+
+    [Fact]
+    public void Validate_RejectsBlankDuplicateCaseMismatchedAndInvalidSubsetSchemalessConfiguration()
+    {
+        var servers = new[]
+        {
+            Server("Blank", schemalessTools: [" "]),
+            Server("Duplicate", schemalessTools: ["echo", "echo"]),
+            Server("CaseMismatch", allowedTools: ["Echo"], schemalessTools: ["echo"]),
+            Server("Outside", allowedTools: ["lookup"], schemalessTools: ["echo"])
+        };
+        var validator = new ExternalMcpOptionsValidator();
+
+        foreach (var server in servers)
+        {
+            var result = validator.Validate(null, new ExternalMcpOptions { Servers = [server] });
+            Assert.True(result.Failed);
+        }
+    }
+
+    [Fact]
     public async Task RefreshAsync_DisposesClientWhenToolSnapshotListingFails()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
@@ -397,6 +482,19 @@ public sealed class ExternalMcpAgentToolSourceTests
         Assert.Equal("hello", reserialized.GetProperty("text").GetString());
     }
 
+    [Fact]
+    public void CloneSchema_PreservesMissingAndPresentMalformedSchemaWithoutSynthesis()
+    {
+        Assert.Null(ExternalMcpJsonRoundTrip.CloneSchema(default(JsonElement)));
+        Assert.Null(ExternalMcpJsonRoundTrip.CloneSchema(null));
+        using var malformed = JsonDocument.Parse("[]");
+
+        var clone = ExternalMcpJsonRoundTrip.CloneSchema(malformed.RootElement);
+
+        Assert.NotNull(clone);
+        Assert.Equal(JsonValueKind.Array, clone.Value.ValueKind);
+    }
+
     private static ExternalMcpConnectionManager CreateManager(
         FakeExternalMcpClientFactory factory,
         params ExternalMcpServerOptions[] servers)
@@ -427,6 +525,7 @@ public sealed class ExternalMcpAgentToolSourceTests
     private static ExternalMcpServerOptions Server(
         string name,
         IReadOnlyCollection<string>? allowedTools = null,
+        IReadOnlyCollection<string>? schemalessTools = null,
         double timeoutSeconds = 30)
     {
         return new ExternalMcpServerOptions
@@ -434,6 +533,7 @@ public sealed class ExternalMcpAgentToolSourceTests
             Name = name,
             Command = "fake",
             AllowedTools = allowedTools?.ToList() ?? [],
+            SchemalessTools = schemalessTools?.ToList() ?? [],
             ToolCallTimeoutSeconds = timeoutSeconds
         };
     }

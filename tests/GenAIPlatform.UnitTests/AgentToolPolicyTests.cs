@@ -103,11 +103,11 @@ public sealed class AgentToolPolicyTests
     }
 
     [Fact]
-    public void Validate_FailsClosedWhenRequiredArgumentsAreMissing()
+    public void Validate_RetainsSemanticWhitespaceRejection()
     {
         var ticketTool = GetDemoTool("CreateSupportTicket");
 
-        using var arguments = JsonDocument.Parse("""{"title":"Missing description"}""");
+        using var arguments = JsonDocument.Parse("""{"title":"   ","description":"Present"}""");
         var result = ticketTool.Validate(arguments.RootElement);
 
         Assert.False(result.IsValid);
@@ -120,12 +120,12 @@ public sealed class AgentToolPolicyTests
         var draftTool = GetDemoTool("DraftEmail");
 
         using var arguments = JsonDocument.Parse(
-            """{"to":"a@example.test","subject":"Hello","body":"Body","ignored":"value"}""");
+            """{"to":"  a@example.test ","subject":" Hello ","body":" Body "}""");
         var result = draftTool.Validate(arguments.RootElement);
 
         Assert.True(result.IsValid);
         Assert.Equal("draft", result.SanitizedArguments.GetProperty("mode").GetString());
-        Assert.False(result.SanitizedArguments.TryGetProperty("ignored", out _));
+        Assert.Equal("a@example.test", result.SanitizedArguments.GetProperty("to").GetString());
     }
 
     [Fact]

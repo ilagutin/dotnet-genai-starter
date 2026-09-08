@@ -25,9 +25,7 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        return arguments.ValueKind is JsonValueKind.Object or JsonValueKind.Undefined
-            ? ToolValidationResult.Valid(Json("{}"))
-            : ToolValidationResult.Invalid("invalid_arguments", "GetCurrentUserProfile expects an object argument.");
+        return ToolValidationResult.Valid(Json("{}"));
     }
 
     public Task<ToolExecutionResult> ExecuteAsync(

@@ -63,6 +63,7 @@ Configuration lives under `GenAIPlatform:ExternalMcp:Servers`:
           "Arguments": [ "-y", "@modelcontextprotocol/server-everything" ],
           "WorkingDirectory": null,
           "AllowedTools": [ "echo" ],
+          "SchemalessTools": [],
           "ConnectTimeoutSeconds": 10,
           "ToolCallTimeoutSeconds": 30
         }
@@ -72,23 +73,27 @@ Configuration lives under `GenAIPlatform:ExternalMcp:Servers`:
 }
 ```
 
-The `Servers` list is the server allow-list: only configured, enabled servers are considered. `AllowedTools` is an optional per-server tool allow-list. When `AllowedTools` is empty, all tools reported by that enabled server are wrapped; when it is populated, only matching original external tool names are exposed to the agentic registry.
+The `Servers` list is the server allow-list: only configured, enabled servers are considered. `AllowedTools` is an optional per-server tool allow-list. When `AllowedTools` is empty, all tools reported by that enabled server are considered; when it is populated, only exact case-sensitive matching original external tool names can be exposed to the agentic registry.
+
+External tools without an input schema are omitted by default. A server may opt in an exact case-sensitive original name through `SchemalessTools`; that narrow exception synthesizes an object-only planning schema, remains subject to `AllowedTools`, and is still approval-required. Blank or duplicate schemaless entries fail configuration validation. When `AllowedTools` is non-empty, every schemaless entry must be an exact member of it, so case mismatches and invalid subsets fail closed. A present malformed or unsupported schema is never converted into a schemaless exception.
 
 Connection lifecycle is controlled at the `ExternalMcp` level. `ConnectOnStartup` (default `true`) runs a startup warmup; set it to `false` to connect on demand instead. `MaxParallelConnects` (default `4`) bounds how many servers connect concurrently so one slow or hung server cannot delay the others, while connect order never changes the deterministic tool listing. `RefreshInterval` (default one minute, `00:00:00` to disable) is a background pass that re-attempts servers which are not currently available and lists their tools; already-available servers are left untouched. Startup is non-blocking: the warmup and recovery run in the background, so an unreachable server never delays host startup.
 
-External tool definitions are treated as untrusted input. Descriptions are sanitized and length-limited before they can enter a model prompt. Tool argument payloads are passed through JSON round-trip conversion at the adapter boundary so nested objects and arrays are preserved.
+External tool definitions are treated as untrusted input. Descriptions are sanitized and length-limited before they can enter a model prompt. Present schemas are preserved rather than replaced, and the Application validator evaluates the captured schema before semantic normalization, approval or an MCP client call. It uses explicit Draft 2020-12, 64 KiB schema and argument limits, depth 32, at most 256 schema nodes, no non-fragment references, and no `pattern` or `patternProperties`. Local `$defs` fragment references remain supported and no network resolver is installed. Tool argument payloads that pass validation are then passed through JSON round-trip conversion at the adapter boundary so nested objects and arrays are preserved.
 
 ## External Tool Governance Guarantees
 
 The external MCP adapter keeps governance in the platform:
 
 - Snapshot at connect: tool name, description and input schema are captured when the server connects.
-- Snapshot provenance: the snapshot hash becomes the backend-owned tool schema version and is written to tool audit provenance. The model-proposed schema version does not control external-tool audit provenance.
+- Snapshot provenance: the snapshot hash covers the schema plus whether it was synthesized by the schemaless exception. It becomes the backend-owned tool schema version and is written to tool audit provenance. The model-proposed schema version does not control external-tool audit provenance.
 - Prefixed names: external tools are exposed as provider-safe `mcp_<server>_<tool>` names after ASCII sanitization and length limiting.
 - Approval by default: every external MCP tool is registered as approval-required, regardless of how the external server describes itself.
 - Backend allow-list: only configured servers and allowed tools can appear in the agentic registry.
 - Fail closed/degrade: unavailable or timed-out servers produce no available tools or failed tool results rather than bypassing policy or crashing the agentic loop. A server that is unavailable at startup recovers on the next background refresh pass (or an explicit refresh); a connection that drops after a tool was listed is re-established on the next call to that tool.
 - Audit path: executed, approval-required, rejected and failed external tool calls go through the same tool audit mechanism as built-in Agentic tools.
+
+The wrapper and its validation schema are frozen for an agentic chat session. A later mutation of a listed descriptor cannot change that session's validation contract or audit snapshot hash. This is not remote attestation: reconnecting to a server does not re-list or prove that its implementation still matches the captured schema.
 
 This starter-kit release does not claim production-ready remote MCP authentication, secret storage or enterprise connector management. External stdio server configuration is a local/sample adapter pattern; production credential handling and remote multi-tenant MCP are future work.
 

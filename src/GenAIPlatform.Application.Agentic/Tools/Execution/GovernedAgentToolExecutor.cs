@@ -6,6 +6,7 @@ namespace GenAIPlatform.Application.Agentic.Tools.Execution;
 
 internal sealed class GovernedAgentToolExecutor(
     ToolPolicy toolPolicy,
+    AgentToolArgumentValidator argumentValidator,
     AgentToolAuditLogWriter auditLogWriter)
 {
     public async Task<AgentToolExecutionResult> ExecuteAsync(
@@ -14,8 +15,9 @@ internal sealed class GovernedAgentToolExecutor(
     {
         var tool = request.Tools.FirstOrDefault(candidate =>
             string.Equals(candidate.Definition.Name, request.ToolName, StringComparison.Ordinal));
-        var validation = tool?.Validate(request.Arguments)
-            ?? ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
+        var validation = tool is not null
+            ? argumentValidator.Validate(tool, request.Arguments)
+            : ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
         var policy = toolPolicy.Decide(tool?.Policy, request.ToolName);
         var outcome = await ExecuteCoreAsync(
             request,

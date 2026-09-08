@@ -29,11 +29,6 @@ internal sealed class DraftEmailTool : IAgentTool
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        if (arguments.ValueKind != JsonValueKind.Object)
-        {
-            return ToolValidationResult.Invalid("invalid_arguments", "DraftEmail expects an object argument.");
-        }
-
         var to = ReadRequiredString(arguments, "to");
         var subject = ReadRequiredString(arguments, "subject");
         var body = ReadRequiredString(arguments, "body");

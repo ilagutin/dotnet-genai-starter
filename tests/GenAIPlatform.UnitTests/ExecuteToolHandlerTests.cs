@@ -119,6 +119,7 @@ public sealed class ExecuteToolHandlerTests
         var executor = new AgentToolExecutor(
             new GovernedAgentToolExecutor(
                 new ToolPolicy(),
+                new AgentToolArgumentValidator(),
                 new AgentToolAuditLogWriter(audit, TimeProvider.System)),
             NullLogger<AgentToolExecutor>.Instance);
         var session = new AgenticChatSession(

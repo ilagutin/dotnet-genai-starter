@@ -194,6 +194,60 @@ public sealed class ExternalAgenticToolGovernanceTests
             await manager.StopAsync(CancellationToken.None);
         }
     }
+
+    [Fact]
+    public async Task HandleAsync_RealExternalMcpWrapperRejectsSnapshotSchemaMismatchBeforeClientCall()
+    {
+        var externalClient = FakeExternalMcpClient.WithTools(new ExternalMcpToolDescriptor(
+            "lookup",
+            "Looks up an order.",
+            Json("""
+            {
+              "type": "object",
+              "properties": { "query": { "type": "string" } },
+              "required": [ "query" ],
+              "additionalProperties": false
+            }
+            """)));
+        var manager = new ExternalMcpConnectionManager(
+            Options.Create(new ExternalMcpOptions
+            {
+                Servers = [new ExternalMcpServerOptions { Name = "Orders", Command = "fake" }]
+            }),
+            new SingleExternalMcpClientFactory(externalClient),
+            new AlwaysConnectMcpPolicy(),
+            NullLogger<ExternalMcpConnectionManager>.Instance);
+        await manager.RefreshAsync(CancellationToken.None);
+        try
+        {
+            var source = new ExternalMcpAgentToolSource(manager);
+            var tool = Assert.Single(source.GetAvailableTools());
+            var snapshotHash = tool.Definition.SchemaVersion;
+            var audit = new CapturingToolAuditLogRepository();
+            var dispatcher = CreateDispatcher(
+                new SequenceModelClient([ToolResponse(tool.Definition.Name, """{"wrong":"secret-value"}""")]),
+                audit,
+                source);
+
+            var response = await dispatcher.DispatchAsync<AgenticChatCommand, AgenticChatResponse>(
+                new AgenticChatCommand("Use external lookup.", CorrelationId: "external-schema", ApproveRiskyTools: true),
+                CancellationToken.None);
+
+            var result = Assert.Single(response.ToolResults);
+            Assert.Equal(ToolExecutionStatus.ValidationFailed, result.ExecutionStatus);
+            Assert.Equal("schema_invalid", result.ErrorCode);
+            Assert.Equal(0, externalClient.CallCount);
+            var entry = Assert.Single(audit.Entries);
+            Assert.Equal(snapshotHash, entry.SchemaVersion);
+            Assert.Equal("{}", entry.Arguments.GetRawText());
+            Assert.DoesNotContain("secret-value", entry.ErrorMessage ?? string.Empty, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await manager.StopAsync(CancellationToken.None);
+        }
+    }
+
     [Fact]
     public async Task HandleAsync_BudgetSkippedExternalToolStillWritesAudit()
     {
