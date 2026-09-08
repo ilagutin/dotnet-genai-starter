@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Tools.Execute;
@@ -9,6 +10,7 @@ using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace GenAIPlatform.IntegrationTests;
@@ -172,61 +174,63 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
     }
 
     [DockerAvailableFact]
-    public async Task ToolAuditLogPersistence_SchemaInvalidRoundTripContainsOnlyBoundedSchemaPath()
+    public async Task GovernedSchemaInvalidArgumentLimitsPersistOnlyContentFreeErrors()
     {
-        const string secretKey = "syntheticSecretKey";
-        const string secretValue = "synthetic-secret-value";
-        using var scope = await CreateScopeAsync();
-        await CleanToolAuditTableAsync(scope.ConnectionString);
-        var repository = scope.Services.GetRequiredService<IToolAuditLogRepository>();
+        const string secretKey = "postgresSyntheticArgumentKeyMarker";
+        const string secretValue = "postgres-synthetic-argument-value-marker";
         var tool = new SchemaValidationProbeTool();
-        using var rawArguments = JsonDocument.Parse(
-            $$"""{"{{secretKey}}":"{{secretValue}}"}""");
-        var validation = new AgentToolArgumentValidator().Validate(tool, rawArguments.RootElement);
-        var id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        var logs = new CapturingLoggerProvider();
+        using var scope = await CreateScopeAsync(services =>
+        {
+            services.AddSingleton<IAgentToolRegistry>(new SingleToolRegistry(tool));
+            services.AddSingleton<IUserContext>(new TestUserContext());
+            services.AddLogging(builder => builder
+                .SetMinimumLevel(LogLevel.Debug)
+                .AddProvider(logs));
+        });
+        await CleanToolAuditTableAsync(scope.ConnectionString);
+        var dispatcher = scope.Services.GetRequiredService<IApplicationDispatcher>();
+        var arguments = new[]
+        {
+            JsonSerializer.SerializeToElement(new Dictionary<string, string>
+            {
+                [$"{secretKey}{new string('k', 65536)}"] = secretValue
+            }),
+            ParseJson(NestedArguments(33, secretKey, secretValue), maxDepth: 128)
+        };
 
-        Assert.False(validation.IsValid);
-        Assert.Equal("schema_invalid", validation.ErrorCode);
+        foreach (var argument in arguments)
+        {
+            var response = await dispatcher.DispatchAsync<ExecuteToolCommand, ExecuteToolResponse>(
+                new ExecuteToolCommand(tool.Definition.Name, argument),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(ToolExecutionStatus.ValidationFailed, response.ExecutionStatus);
+            Assert.Equal("schema_invalid", response.ErrorCode);
+            Assert.Equal("Tool arguments do not match the declared schema at /", response.ErrorMessage);
+        }
+
         Assert.Equal(0, tool.SemanticValidationCalls);
+        Assert.Equal(0, tool.ExecutionCalls);
+        var persisted = await ReadAllAuditEntriesAsync(scope.ConnectionString);
+        Assert.Equal(2, persisted.Count);
+        foreach (var entry in persisted)
+        {
+            Assert.Equal("Invalid", entry.ValidationStatus);
+            Assert.Equal("ValidationFailed", entry.ExecutionStatus);
+            Assert.Equal("schema_invalid", entry.ErrorCode);
+            Assert.Equal("{}", entry.ArgumentsJson);
+            Assert.Null(entry.OutputJson);
+            Assert.Equal("Tool arguments do not match the declared schema at /", entry.ErrorMessage);
+            Assert.InRange(entry.ErrorMessage!.Length, 1, 256);
+        }
 
-        await repository.AddAsync(
-            new ToolAuditLogEntry(
-                id,
-                Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
-                "tenant-a",
-                "alice",
-                "schema-audit-test",
-                "call-schema-invalid",
-                "GetCurrentUserProfile",
-                "v1",
-                "tool-policy-v1",
-                "Invalid",
-                "Allowed",
-                "NotRequired",
-                "ValidationFailed",
-                validation.SanitizedArguments,
-                Output: null,
-                validation.ErrorCode,
-                validation.ErrorMessage,
-                DateTimeOffset.Parse("2026-09-08T12:00:00Z")),
-            TestContext.Current.CancellationToken);
-
-        var persisted = await ReadAuditEntryAsync(scope.ConnectionString, id);
-
-        Assert.Equal("Invalid", persisted.ValidationStatus);
-        Assert.Equal("ValidationFailed", persisted.ExecutionStatus);
-        Assert.Equal("schema_invalid", persisted.ErrorCode);
-        Assert.Equal("{}", persisted.ArgumentsJson);
-        Assert.Null(persisted.OutputJson);
-        Assert.Equal(validation.ErrorMessage, persisted.ErrorMessage);
-        Assert.InRange(persisted.ErrorMessage!.Length, 1, 256);
-        var storedText = string.Join('|',
-            persisted.ArgumentsJson,
-            persisted.OutputJson,
-            persisted.ErrorCode,
-            persisted.ErrorMessage);
-        Assert.DoesNotContain(secretKey, storedText, StringComparison.Ordinal);
-        Assert.DoesNotContain(secretValue, storedText, StringComparison.Ordinal);
+        Assert.Contains(logs.Entries, static entry => entry.EventId == 3001);
+        var observableText = string.Join('|', persisted.SelectMany(static entry => new[]
+        {
+            entry.ArgumentsJson, entry.OutputJson, entry.ErrorCode, entry.ErrorMessage
+        }).Concat(logs.Entries.Select(static entry => entry.Message)));
+        Assert.DoesNotContain(secretKey, observableText, StringComparison.Ordinal);
+        Assert.DoesNotContain(secretValue, observableText, StringComparison.Ordinal);
     }
 
     [DockerAvailableFact]
@@ -465,6 +469,26 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         return value.EnumerateObject().Select(static property => property.Name).Order().ToArray();
     }
 
+    private static string NestedArguments(int levels, string key, string leafValue)
+    {
+        var arguments = JsonSerializer.Serialize(leafValue);
+        for (var index = 0; index < levels; index++)
+        {
+            arguments = JsonSerializer.Serialize(new Dictionary<string, JsonElement>
+            {
+                [$"{key}{index}"] = ParseJson(arguments, maxDepth: 128)
+            });
+        }
+
+        return arguments;
+    }
+
+    private static JsonElement ParseJson(string json, int maxDepth = 64)
+    {
+        using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxDepth });
+        return document.RootElement.Clone();
+    }
+
     private sealed record RepositoryScope(
         ServiceProvider Services,
         string ConnectionString)
@@ -482,17 +506,13 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             "SchemaValidationProbe",
             "Integration-test schema probe.",
             "v1",
-            Json("""
-            {
-              "type": "object",
-              "properties": {},
-              "additionalProperties": false
-            }
-            """));
+            Json("""{"type":"object"}"""));
 
         public ToolPolicyMetadata Policy { get; } = ToolPolicyMetadata.Allowed("Integration-test probe.");
 
         public int SemanticValidationCalls { get; private set; }
+
+        public int ExecutionCalls { get; private set; }
 
         public ToolValidationResult Validate(JsonElement arguments)
         {
@@ -504,7 +524,8 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             JsonElement sanitizedArguments,
             CancellationToken cancellationToken)
         {
-            throw new InvalidOperationException("The schema-invalid probe must not execute.");
+            ExecutionCalls++;
+            return Task.FromResult(new ToolExecutionResult(ToolExecutionStatus.Succeeded, Json("{}")));
         }
 
         private static JsonElement Json(string json)
@@ -513,6 +534,37 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             return document.RootElement.Clone();
         }
     }
+
+    private sealed class SingleToolRegistry(IAgentTool tool) : IAgentToolRegistry
+    {
+        public IReadOnlyList<IAgentTool> GetAvailableTools() => [tool];
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public ConcurrentQueue<CapturedLogEntry> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Entries);
+
+        public void Dispose() { }
+    }
+
+    private sealed class CapturingLogger(ConcurrentQueue<CapturedLogEntry> entries) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            entries.Enqueue(new CapturedLogEntry(eventId.Id, formatter(state, exception)));
+    }
+
+    private sealed record CapturedLogEntry(int EventId, string Message);
 
     private sealed class MetadataOnlyToolRegistry(string secret) : IAgentToolRegistry
     {

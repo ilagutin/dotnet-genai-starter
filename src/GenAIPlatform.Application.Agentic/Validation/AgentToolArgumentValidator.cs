@@ -26,7 +26,7 @@ public sealed class AgentToolArgumentValidator
         var argumentPath = InspectJson(arguments, inspectSchema: false);
         if (argumentPath is not null)
         {
-            return InvalidPayload(argumentPath);
+            return InvalidPayload("/");
         }
 
         try

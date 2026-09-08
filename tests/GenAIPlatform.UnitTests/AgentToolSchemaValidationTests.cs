@@ -58,6 +58,23 @@ public sealed class AgentToolSchemaValidationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_PreservesGenuineSchemaEvaluationPath()
+    {
+        var tool = DemoTools().Single(candidate => candidate.Definition.Name == "CreateSupportTicket");
+
+        var (result, _) = await ExecuteAsync(
+            tool,
+            Json("""{"title":7,"description":"synthetic-schema-value-marker"}"""),
+            approveRiskyTools: false);
+
+        Assert.Equal(AgentToolArgumentValidator.SchemaInvalidCode, result.ErrorCode);
+        Assert.Equal(
+            "Tool arguments do not match the declared schema at /properties/title",
+            result.ErrorMessage);
+        Assert.DoesNotContain("synthetic-schema-value-marker", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PreservesBuiltInSemanticNormalizationAndDeterministicTicketId()
     {
         var tool = DemoTools().Single(candidate => candidate.Definition.Name == "CreateSupportTicket");
@@ -132,18 +149,34 @@ public sealed class AgentToolSchemaValidationTests
     [Fact]
     public async Task ExecuteAsync_RejectsArgumentSizeAndDepthBoundsBeforeToolCode()
     {
+        const string secretKey = "syntheticArgumentKeyMarker";
+        const string secretValue = "synthetic-argument-value-marker";
         const string schema = "{\"type\":\"object\"}";
         var oversizedTool = new ProbeTool(schema);
         var deepTool = new ProbeTool(schema);
 
         var oversized = await ExecuteAsync(
             oversizedTool,
-            Json(JsonSerializer.Serialize(new { value = new string('a', 65536) })),
+            Json(JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                [$"{secretKey}{new string('k', 65536)}"] = secretValue
+            })),
             approveRiskyTools: true);
-        var deep = await ExecuteAsync(deepTool, Json(NestedArguments(33), maxDepth: 128), approveRiskyTools: true);
+        var deep = await ExecuteAsync(
+            deepTool,
+            Json(NestedArguments(33, secretKey, secretValue), maxDepth: 128),
+            approveRiskyTools: true);
 
-        Assert.Equal(AgentToolArgumentValidator.SchemaInvalidCode, oversized.Result.ErrorCode);
-        Assert.Equal(AgentToolArgumentValidator.SchemaInvalidCode, deep.Result.ErrorCode);
+        foreach (var outcome in new[] { oversized, deep })
+        {
+            Assert.Equal(AgentToolArgumentValidator.SchemaInvalidCode, outcome.Result.ErrorCode);
+            Assert.Equal("Tool arguments do not match the declared schema at /", outcome.Result.ErrorMessage);
+            Assert.Equal("{}", outcome.Audit.Arguments.GetRawText());
+            Assert.Null(outcome.Audit.Output);
+            Assert.Equal(outcome.Result.ErrorMessage, outcome.Audit.ErrorMessage);
+            Assert.DoesNotContain(secretKey, outcome.Result.ErrorMessage, StringComparison.Ordinal);
+            Assert.DoesNotContain(secretValue, outcome.Result.ErrorMessage, StringComparison.Ordinal);
+        }
         Assert.Equal(0, oversizedTool.SemanticValidationCalls);
         Assert.Equal(0, deepTool.SemanticValidationCalls);
         Assert.Equal(0, oversizedTool.ExecutionCalls);
@@ -254,12 +287,15 @@ public sealed class AgentToolSchemaValidationTests
         return schema;
     }
 
-    private static string NestedArguments(int levels)
+    private static string NestedArguments(int levels, string key = "nested", string leafValue = "value")
     {
-        var arguments = "{}";
+        var arguments = JsonSerializer.Serialize(leafValue);
         for (var index = 0; index < levels; index++)
         {
-            arguments = $"{{\"nested\":{arguments}}}";
+            arguments = JsonSerializer.Serialize(new Dictionary<string, JsonElement>
+            {
+                [$"{key}{index}"] = Json(arguments)
+            });
         }
 
         return arguments;

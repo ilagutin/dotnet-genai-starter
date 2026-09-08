@@ -67,8 +67,9 @@ non-2020-12 dialect, malformed schema or unsupported schema definition fails
 closed as `schema_definition_invalid`. A payload that does not match an
 accepted schema fails as `schema_invalid`.
 
-Validation errors contain only the first failing schema `EvaluationPath` in
-ordinal order. The complete stored message is printable/control-normalized and
+Schema mismatch errors contain only the first failing schema `EvaluationPath`
+in ordinal order. Argument size and depth limit failures use the fixed root
+path `/`. The complete stored message is printable/control-normalized and
 limited to 256 characters. Library error text, argument instance paths and raw
 argument names or values are not included.
 
