@@ -60,7 +60,7 @@ public static class Setup
             .Bind(configuration.GetSection(LocalDocumentStorageOptions.SectionName))
             .Validate(
                 static options => IsValidLocalDocumentStorageOptions(options),
-                "Local document storage configuration is invalid. Configure GenAIPlatform:DocumentStorage:RootPath as an absolute shared path for API and Worker, or use the local starter-kit fallback from the repository layout when using the default relative path.")
+                "Local document storage configuration is invalid. Configure GenAIPlatform:DocumentStorage:RootPath as an absolute shared path for API and Worker, or as a relative path from the host base directory.")
             .ValidateOnStart();
         services
             .AddOptions<ModelGatewayOptions>()

@@ -57,17 +57,16 @@ zero-magnitude embedding arrays are left without `embedding_vector` and will not
 participate in retrieval; re-index those documents to regenerate valid vectors.
 
 Local document storage defaults to
-`GenAIPlatform:DocumentStorage:RootPath=storage/documents`. In source-tree local
-runs, that starter-kit fallback resolves the relative path from the repository
-root so the API and Worker share `storage/documents` even if they are launched
-from different current directories. Outside the repository layout, configure the
-same absolute path for both processes; startup validation fails when a relative
-root cannot be resolved safely. Orphaned document storage cleanup requests are
-stored in PostgreSQL (`genai.document_storage_cleanup_requests`) so API and
-Worker hosts do not need a shared local cleanup journal. When using the local
-filesystem storage adapter across multiple hosts, the document files themselves
-still need shared storage or a replaceable storage adapter that both hosts can
-access.
+`GenAIPlatform:DocumentStorage:RootPath=storage/documents`, resolved from each
+host's `AppContext.BaseDirectory`. That is useful for a single published host,
+but it does not make separately launched API and Worker processes share files.
+For the local two-process demo, set one matching absolute path in both terminals.
+Docker Compose starts PostgreSQL only and cannot configure either host process.
+Orphaned document storage cleanup requests are stored in PostgreSQL
+(`genai.document_storage_cleanup_requests`) so API and Worker hosts do not need
+a shared local cleanup journal. When using the local filesystem storage adapter
+across multiple hosts, the document files themselves still need shared storage
+or a replaceable storage adapter that both hosts can access.
 
 ```powershell
 $env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
@@ -77,6 +76,7 @@ Run the API:
 
 ```powershell
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
+$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
 dotnet run --project src/GenAIPlatform.Api --launch-profile http
 ```
 
@@ -86,6 +86,7 @@ environment variables do not carry into a new window:
 
 ```powershell
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
+$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
 dotnet run --project src/GenAIPlatform.Worker
 ```
 
@@ -261,9 +262,9 @@ sharing it; do not fabricate real-provider evidence from mock-provider data.
 ## Demo Flow Checklist
 
 1. `docker compose up -d postgres`
-2. Set `ConnectionStrings__GenAIPlatform` in the API terminal.
+2. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the API terminal.
 3. `dotnet run --project src/GenAIPlatform.Api --launch-profile http`
-4. Set `ConnectionStrings__GenAIPlatform` in the Worker terminal.
+4. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the Worker terminal.
 5. `dotnet run --project src/GenAIPlatform.Worker`
 6. `GET /api/v1/health`
 7. `POST /api/v1/chat/direct`

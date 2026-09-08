@@ -1,9 +1,37 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
 
 namespace GenAIPlatform.IntegrationTests;
 
 public sealed class ConfigurationSecretTests
 {
+    [Fact]
+    public async Task WorkerAppSettings_ContainsOnlyConsumedConfigurationMatchingApiValues()
+    {
+        var apiConfiguration = await ReadAppSettingsAsync("src/GenAIPlatform.Api/appsettings.json");
+        var workerConfiguration = await ReadAppSettingsAsync("src/GenAIPlatform.Worker/appsettings.json");
+        var apiPlatform = apiConfiguration["GenAIPlatform"]!.AsObject();
+        var workerPlatform = workerConfiguration["GenAIPlatform"]!.AsObject();
+        var apiIngestion = apiPlatform["DocumentIngestion"]!.AsObject();
+        var workerIngestion = workerPlatform["DocumentIngestion"]!.AsObject();
+
+        Assert.Equal(
+            ["DocumentIngestion", "DocumentStorage", "Postgres"],
+            workerPlatform.Select(static property => property.Key).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            apiIngestion["ChunkMaxCharacters"]!.GetValue<int>(),
+            workerIngestion["ChunkMaxCharacters"]!.GetValue<int>());
+        Assert.Equal(
+            apiIngestion["AllowedExtensions"]!.AsArray().Select(static value => value!.GetValue<string>()),
+            workerIngestion["AllowedExtensions"]!.AsArray().Select(static value => value!.GetValue<string>()));
+        Assert.Equal(
+            apiPlatform["DocumentStorage"]!["RootPath"]!.GetValue<string>(),
+            workerPlatform["DocumentStorage"]!["RootPath"]!.GetValue<string>());
+        Assert.Equal(
+            apiPlatform["Postgres"]!["ConnectionStringName"]!.GetValue<string>(),
+            workerPlatform["Postgres"]!["ConnectionStringName"]!.GetValue<string>());
+    }
+
     [Theory]
     [InlineData("src/GenAIPlatform.Api/appsettings.json")]
     [InlineData("src/GenAIPlatform.Worker/appsettings.json")]
@@ -37,5 +65,12 @@ public sealed class ConfigurationSecretTests
         }
 
         throw new InvalidOperationException("Could not find repository root.");
+    }
+
+    private static async Task<JsonObject> ReadAppSettingsAsync(string relativePath)
+    {
+        var content = await File.ReadAllTextAsync(Path.Combine(FindRepositoryRoot(), relativePath));
+        return JsonNode.Parse(content)?.AsObject()
+               ?? throw new InvalidOperationException($"Could not parse {relativePath}.");
     }
 }
