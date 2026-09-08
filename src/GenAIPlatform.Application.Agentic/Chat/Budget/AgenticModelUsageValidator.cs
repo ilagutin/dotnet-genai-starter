@@ -25,6 +25,12 @@ internal static class AgenticModelUsageValidator
                 : null;
             if (usage.TotalTokens is { } suppliedTotal)
             {
+                if (usage.InputTokens is { } knownInput && suppliedTotal < knownInput
+                    || usage.OutputTokens is { } knownOutput && suppliedTotal < knownOutput)
+                {
+                    return AgenticChatStatus.InvalidUsage;
+                }
+
                 if (componentTotal is { } sum && sum != suppliedTotal)
                 {
                     return AgenticChatStatus.InvalidUsage;

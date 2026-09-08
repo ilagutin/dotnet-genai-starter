@@ -24,6 +24,10 @@ public sealed class AgenticUsageBoundaryTests
         { new(null, null, -1), "InvalidUsage", "invalid_usage" },
         { new(1, null, null), "InvalidUsage", "invalid_usage" },
         { new(null, 1, null), "InvalidUsage", "invalid_usage" },
+        { new(5000, null, 0), "InvalidUsage", "invalid_usage" },
+        { new(null, 5000, 0), "InvalidUsage", "invalid_usage" },
+        { new(int.MaxValue, null, int.MaxValue - 1), "InvalidUsage", "invalid_usage" },
+        { new(null, int.MaxValue, int.MaxValue - 1), "InvalidUsage", "invalid_usage" },
         { new(1, 2, 4), "InvalidUsage", "invalid_usage" },
         { new(int.MaxValue, 1, null), "InvalidUsage", "invalid_usage" },
         { new(int.MaxValue, 1, int.MaxValue), "InvalidUsage", "invalid_usage" }
@@ -74,13 +78,24 @@ public sealed class AgenticUsageBoundaryTests
     [InlineData(3, 4, 7, 7, true)]
     [InlineData(0, 0, null, 0, true)]
     [InlineData(null, null, 0, 0, false)]
+    [InlineData(0, null, 0, 0, false)]
+    [InlineData(null, 0, 0, 0, false)]
     [InlineData(0, 0, 0, 0, true)]
+    [InlineData(int.MaxValue - 1, null, int.MaxValue - 1, int.MaxValue - 1, false)]
+    [InlineData(null, int.MaxValue - 1, int.MaxValue - 1, int.MaxValue - 1, false)]
     public async Task ValidUsageAccountsWithoutRewritingProviderValues(
         int? input, int? output, int? total, int expectedTotal, bool exact)
     {
         var usage = new AiModelUsage(input, output, total);
         var response = Response(usage);
-        using var fixture = new Fixture([response]);
+        using var fixture = new Fixture(
+            [response],
+            new AgenticChatOptions
+            {
+                MaxTotalTokens = int.MaxValue,
+                MaxEstimatedCost = decimal.MaxValue,
+                EstimatedCostPerThousandTokens = 1m
+            });
         var result = await fixture.RunAsync();
 
         Assert.Equal("Succeeded", result.Status);
@@ -126,15 +141,22 @@ public sealed class AgenticUsageBoundaryTests
     [InlineData(true)]
     public async Task CumulativeOverflowStopsBeforeCurrentEstimation(bool componentOverflow)
     {
-        var first = componentOverflow ? new AiModelUsage(int.MaxValue, null, 1) : new(int.MaxValue - 1, 0, int.MaxValue - 1);
-        var next = componentOverflow ? new AiModelUsage(1, null, 1) : new(2, 0, 2);
-        using var fixture = new Fixture([Response(first, tool: true), Response(next, tool: true)]);
+        var first = componentOverflow ? new AiModelUsage(int.MaxValue - 1, null, int.MaxValue - 1) : new(int.MaxValue - 1, 0, int.MaxValue - 1);
+        var next = componentOverflow ? new AiModelUsage(2, null, 2) : new(2, 0, 2);
+        using var fixture = new Fixture(
+            [Response(first, tool: true), Response(next, tool: true)],
+            new AgenticChatOptions
+            {
+                MaxTotalTokens = int.MaxValue,
+                MaxEstimatedCost = decimal.MaxValue,
+                EstimatedCostPerThousandTokens = 1m
+            });
         var result = await fixture.RunAsync();
 
         Assert.Equal("InvalidUsage", result.Status);
         Assert.Equal(first.TotalTokens, result.TotalTokens);
         Assert.Equal(first, result.Usage);
-        Assert.Equal(componentOverflow ? 0.001m : 0.01m, result.EstimatedCost);
+        Assert.Equal(componentOverflow ? first.TotalTokens / 1000m : 0.01m, result.EstimatedCost);
         Assert.Equal(componentOverflow ? 0 : 1, fixture.Estimator.Calls);
         Assert.Equal(1, fixture.Tool.Calls);
         Assert.Equal(2, fixture.Model.Calls);

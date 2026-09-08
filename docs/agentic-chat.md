@@ -67,8 +67,8 @@ and cancellation do not emit it. No response content or exception message is
 logged in this event.
 
 After each model response, the loop validates usage before cost estimation or
-tool execution. Every supplied count must be nonnegative. A supplied total is
-usable with zero or one component; with both components it must equal their
+tool execution. Every supplied count must be nonnegative. A supplied total must
+be at least each known component; with both components it must equal their
 checked sum. When the total is missing, both components are required to derive
 an internal total. Provider-reported usage is never rewritten. Aggregate input,
 output and provider-total fields stay null once any contributing valid response
