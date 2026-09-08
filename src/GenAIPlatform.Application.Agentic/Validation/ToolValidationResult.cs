@@ -21,9 +21,14 @@ public sealed record ToolValidationResult(
         return new ToolValidationResult(ToolValidationStatus.Invalid, EmptyJsonObject(), errorCode, errorMessage);
     }
 
+    internal static JsonElement ParseJson(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
     private static JsonElement EmptyJsonObject()
     {
-        using var document = JsonDocument.Parse("{}");
-        return document.RootElement.Clone();
+        return ParseJson("{}");
     }
 }

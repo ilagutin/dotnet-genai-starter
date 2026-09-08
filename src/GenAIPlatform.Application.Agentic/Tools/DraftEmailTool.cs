@@ -11,7 +11,7 @@ internal sealed class DraftEmailTool : IAgentTool
         "DraftEmail",
         "Creates a local draft email payload. It never sends email.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {
@@ -72,11 +72,5 @@ internal sealed class DraftEmailTool : IAgentTool
 
         var text = value.GetString()?.Trim();
         return string.IsNullOrWhiteSpace(text) ? null : text;
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

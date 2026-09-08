@@ -40,13 +40,12 @@ internal sealed class ApiExceptionHandler(
             ForbiddenRequestException current => ApiErrorMapping.Forbidden(current),
             NotFoundException current => ApiErrorMapping.NotFound(current),
             ConflictException current => ApiErrorMapping.Conflict(current),
-            DocumentTooLargeException current => ApiErrorMapping.PayloadTooLarge(
-                current,
+            DocumentTooLargeException => ApiErrorMapping.PayloadTooLarge(
                 ingestionOptions.Value.MaxUploadBytes),
             ProviderException current => ApiErrorMapping.ProviderProblem(current),
             ValidationException current => ApiErrorMapping.BadRequest(current.Message),
             EvaluationValidationException current => ApiErrorMapping.BadRequest(current.Message),
-            DomainException current => ApiErrorMapping.InternalDomainViolation(current),
+            DomainException => ApiErrorMapping.InternalDomainViolation(),
             _ => null
         };
     }

@@ -1,5 +1,6 @@
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Knowledge.Documents;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Api;
@@ -31,6 +32,7 @@ internal static class DocumentEndpoints
         HttpRequest httpRequest,
         IApplicationDispatcher dispatcher,
         IOptions<DocumentIngestionOptions> ingestionOptions,
+        IOptions<FormOptions> formOptions,
         CancellationToken cancellationToken)
     {
         if (!httpRequest.HasFormContentType)
@@ -60,7 +62,13 @@ internal static class DocumentEndpoints
 
             return Results.Accepted($"/api/v1/documents/{result.DocumentId}", result);
         }
-        catch (InvalidDataException exception) when (MultipartFormErrors.IsMultipartBodyLimitExceeded(exception))
+        catch (BadHttpRequestException exception)
+            when (exception.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            return ApiErrorMapping.PayloadTooLarge(ingestionOptions.Value.MaxUploadBytes);
+        }
+        catch (InvalidDataException)
+            when (httpRequest.ContentLength > formOptions.Value.MultipartBodyLengthLimit)
         {
             return ApiErrorMapping.PayloadTooLarge(ingestionOptions.Value.MaxUploadBytes);
         }

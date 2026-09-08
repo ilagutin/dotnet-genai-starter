@@ -12,7 +12,7 @@ internal sealed class CreateSupportTicketTool : IAgentTool
         "CreateSupportTicket",
         "Creates an idempotent demo support ticket.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {
@@ -76,11 +76,5 @@ internal sealed class CreateSupportTicketTool : IAgentTool
 
         var text = value.GetString()?.Trim();
         return string.IsNullOrWhiteSpace(text) ? null : text;
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

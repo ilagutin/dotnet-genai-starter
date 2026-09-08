@@ -12,7 +12,7 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
         "GetCurrentUserProfile",
         "Returns the current demo user's id, tenant, roles and groups.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {},
@@ -25,7 +25,7 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        return ToolValidationResult.Valid(Json("{}"));
+        return ToolValidationResult.Valid(ToolValidationResult.ParseJson("{}"));
     }
 
     public Task<ToolExecutionResult> ExecuteAsync(
@@ -41,11 +41,5 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
         });
 
         return Task.FromResult(new ToolExecutionResult(ToolExecutionStatus.Succeeded, output));
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

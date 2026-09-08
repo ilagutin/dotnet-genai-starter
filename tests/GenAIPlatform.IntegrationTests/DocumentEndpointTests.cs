@@ -9,6 +9,9 @@ using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Documents;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -228,6 +231,35 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     }
 
     [Theory]
+    [InlineData("bad-request", 413, 1, 8, 413)]
+    [InlineData("bad-request", 400, 1, 8, 500)]
+    [InlineData("invalid-data", 0, 9, 8, 413)]
+    [InlineData("invalid-data", 0, 8, 8, 400)]
+    public async Task UploadDocument_MapsOnlyTypedMultipartLimitFailures(
+        string exceptionKind, int exceptionStatus, int contentLength, long multipartLimit, int expectedStatus)
+    {
+        const long maxUploadBytes = 23;
+        Exception exception = exceptionKind == "bad-request"
+            ? new BadHttpRequestException("synthetic parser failure", exceptionStatus)
+            : new InvalidDataException("Multipart body length limit was exceeded");
+        using var uploadFactory = CreateThrowingFormFactory(exception, multipartLimit, maxUploadBytes);
+        using var client = uploadFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        using var content = new ByteArrayContent(new byte[contentLength]);
+        content.Headers.ContentType = new MediaTypeHeaderValue("multipart/form-data");
+        var response = await client.PostAsync("/api/v1/documents", content);
+        Assert.Equal((HttpStatusCode)expectedStatus, response.StatusCode);
+        Assert.Equal(0, uploadFactory.Services.GetRequiredService<FakeDocumentRepository>().CreateDocumentCalls);
+        var body = await response.Content.ReadAsStringAsync();
+        if (expectedStatus != 500)
+        {
+            Assert.Contains(expectedStatus == 413 ? "23 bytes or fewer" : "multipart/form-data is invalid", body);
+        }
+    }
+
+    [Theory]
     [InlineData("omitted")]
     [InlineData("valid")]
     [InlineData("duplicate")]
@@ -439,13 +471,17 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         Assert.Equal(0, modelClient.Calls);
     }
 
-    [Fact]
-    public async Task RagChat_DoesNotExposeEmbeddingFailureDetailOrCallRetrievalOrModel()
+    [Theory]
+    [InlineData("authentication_error", "authentication_error")]
+    [InlineData("empty_embedding", "empty_embedding")]
+    [InlineData("empty_response", "provider_error")]
+    [InlineData("raw_embedding_code", "provider_error")]
+    public async Task RagChat_DoesNotExposeEmbeddingFailureDetailOrCallRetrievalOrModel(string providerErrorCode, string publicErrorCode)
     {
         using var ragFactory = CreateRagFactory(configureServices: services =>
         {
             services.RemoveAll<IEmbeddingClient>();
-            services.AddSingleton<ThrowingEmbeddingClient>();
+            services.AddSingleton<ThrowingEmbeddingClient>(_ => new(providerErrorCode));
             services.AddSingleton<IEmbeddingClient>(
                 serviceProvider => serviceProvider.GetRequiredService<ThrowingEmbeddingClient>());
         });
@@ -464,10 +500,10 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("The upstream embedding provider request failed.", body);
-        Assert.Contains("provider_error", body);
+        Assert.Contains(publicErrorCode, body);
         Assert.DoesNotContain("raw embedding detail", body);
         Assert.DoesNotContain("sk-test", body);
-        Assert.DoesNotContain("raw_embedding_code", body);
+        Assert.DoesNotContain(publicErrorCode == providerErrorCode ? "raw_embedding_code" : providerErrorCode, body);
         Assert.DoesNotContain("raw-embedding-code", body);
 
         var embeddingClient = ragFactory.Services.GetRequiredService<ThrowingEmbeddingClient>();
@@ -478,8 +514,12 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         Assert.Equal(0, modelClient.Calls);
     }
 
-    [Fact]
-    public async Task RagChat_DoesNotExposeModelFailureDetailAfterRetrieval()
+    [Theory]
+    [InlineData("authentication_error", "authentication_error")]
+    [InlineData("empty_response", "empty_response")]
+    [InlineData("empty_embedding", "provider_error")]
+    [InlineData("Authentication_Error", "provider_error")]
+    public async Task RagChat_DoesNotExposeModelFailureDetailAfterRetrieval(string providerErrorCode, string publicErrorCode)
     {
         using var ragFactory = CreateRagFactory(configureServices: services =>
         {
@@ -488,7 +528,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             services.AddSingleton<IRagVectorSearchStore>(
                 serviceProvider => serviceProvider.GetRequiredService<ReturningRagVectorSearchStore>());
             services.RemoveAll<IAiModelClient>();
-            services.AddSingleton<ThrowingRagModelClient>();
+            services.AddSingleton<ThrowingRagModelClient>(_ => new(providerErrorCode));
             services.AddSingleton<IAiModelClient>(
                 serviceProvider => serviceProvider.GetRequiredService<ThrowingRagModelClient>());
         });
@@ -507,10 +547,10 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("The upstream model provider request failed.", body);
-        Assert.Contains("provider_error", body);
+        Assert.Contains(publicErrorCode, body);
         Assert.DoesNotContain("raw model detail", body);
         Assert.DoesNotContain("sk-test", body);
-        Assert.DoesNotContain("raw_model_code", body);
+        Assert.DoesNotContain(publicErrorCode == providerErrorCode ? "raw_model_code" : providerErrorCode, body);
         Assert.DoesNotContain("raw-model-code", body);
 
         var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
@@ -557,6 +597,32 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
                 services.AddSingleton<IAiModelClient>(
                     serviceProvider => serviceProvider.GetRequiredService<CapturingRagModelClient>());
                 configureServices?.Invoke(services);
+            });
+        });
+    }
+
+    private WebApplicationFactory<Program> CreateThrowingFormFactory(
+        Exception exception,
+        long multipartLimit,
+        long maxUploadBytes)
+    {
+        return factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["GenAIPlatform:DocumentIngestion:MaxUploadBytes"] = maxUploadBytes.ToString()
+                }));
+            builder.ConfigureTestServices(services =>
+            {
+                services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = multipartLimit);
+                services.AddSingleton<IStartupFilter>(new ThrowingFormFeatureStartupFilter(exception));
+                services.RemoveAll<IDocumentStorage>();
+                services.RemoveAll<IDocumentMetadataRepository>();
+                services.AddSingleton<FakeDocumentRepository>();
+                services.AddSingleton<IDocumentMetadataRepository>(
+                    serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
+                services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             });
         });
     }
@@ -784,7 +850,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         }
     }
 
-    private sealed class ThrowingEmbeddingClient : IEmbeddingClient
+    private sealed class ThrowingEmbeddingClient(string errorCode) : IEmbeddingClient
     {
         public int Calls { get; private set; }
 
@@ -796,7 +862,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             throw new EmbeddingClientException(
                 "fake-embedding-provider",
                 "raw embedding detail with sk-test secret",
-                errorCode: "raw_embedding_code",
+                errorCode: errorCode,
                 statusCode: HttpStatusCode.BadGateway,
                 providerErrorCode: "raw-embedding-code");
         }
@@ -820,7 +886,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         }
     }
 
-    private sealed class ThrowingRagModelClient : IAiModelClient
+    private sealed class ThrowingRagModelClient(string errorCode) : IAiModelClient
     {
         public int Calls { get; private set; }
 
@@ -832,7 +898,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             throw new AiModelException(
                 "fake-model-provider",
                 "raw model detail with sk-test secret",
-                errorCode: "raw_model_code",
+                errorCode: errorCode,
                 statusCode: HttpStatusCode.BadGateway,
                 providerErrorCode: "raw-model-code");
         }
