@@ -145,18 +145,32 @@ dotnet test --solution GenAIPlatform.slnx
 docker compose up -d postgres
 ```
 
-Run the API and Worker in separate terminals. Set the connection string in each
-terminal because PowerShell process environment variables are not shared across
-new windows:
+Run the API and Worker in separate terminals. In each terminal, start from the
+root of your clone. The setup lines below intentionally match: they set one
+shared absolute storage location, the same local database, and explicit mock
+providers. PowerShell environment variables are process-local, so repeat them
+for both hosts.
 
 ```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-dotnet run --project src/GenAIPlatform.Api --launch-profile http
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http
 ```
 
 ```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-dotnet run --project src/GenAIPlatform.Worker
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Worker --no-build
 ```
 
 Sample HTTP requests are available in [src/GenAIPlatform.Api/GenAIPlatform.Api.http](src/GenAIPlatform.Api/GenAIPlatform.Api.http) and [samples/http/local-demo.http](samples/http/local-demo.http). The local demo file covers direct chat, document upload, RAG, usage, evaluations and agentic chat.

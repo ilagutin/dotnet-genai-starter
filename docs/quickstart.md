@@ -68,26 +68,32 @@ a shared local cleanup journal. When using the local filesystem storage adapter
 across multiple hosts, the document files themselves still need shared storage
 or a replaceable storage adapter that both hosts can access.
 
-```powershell
-$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
-```
-
-Run the API:
+Run the API from the root of your clone:
 
 ```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
-dotnet run --project src/GenAIPlatform.Api --launch-profile http
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http
 ```
 
 In a second terminal, run the background worker so uploaded documents are
-indexed. Set the connection string again in this terminal; PowerShell process
+indexed. Start from the same clone root and repeat the identical setup. PowerShell
 environment variables do not carry into a new window:
 
 ```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
-dotnet run --project src/GenAIPlatform.Worker
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Worker --no-build
 ```
 
 Useful local endpoints:
@@ -263,9 +269,9 @@ sharing it; do not fabricate real-provider evidence from mock-provider data.
 
 1. `docker compose up -d postgres`
 2. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the API terminal.
-3. `dotnet run --project src/GenAIPlatform.Api --launch-profile http`
+3. `dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http`
 4. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the Worker terminal.
-5. `dotnet run --project src/GenAIPlatform.Worker`
+5. `dotnet run --project src/GenAIPlatform.Worker --no-build`
 6. `GET /api/v1/health`
 7. `POST /api/v1/chat/direct`
 8. Upload [samples/documents/demo-notes.md](../samples/documents/demo-notes.md)
