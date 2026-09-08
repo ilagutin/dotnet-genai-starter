@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -8,41 +7,53 @@ internal sealed class ExternalMcpConnectionManager(
     IOptions<ExternalMcpOptions> options,
     IExternalMcpClientFactory clientFactory,
     IExternalMcpConnectionPolicy policy,
-    ILogger<ExternalMcpConnectionManager> logger) : IExternalMcpConnectionManager, IHostedService, IDisposable, IAsyncDisposable
+    ILogger<ExternalMcpConnectionManager> logger) : IExternalMcpConnectionManager
 {
+    private readonly object gate = new();
     private readonly ExternalMcpConnectionState state = new();
     private readonly ExternalMcpConnector connector = new(options, clientFactory, policy, logger);
     private readonly CancellationTokenSource lifetime = new();
     private Task background = Task.CompletedTask;
-    private int disposed;
+    private TaskCompletionSource? drained;
+    private int activeOperations;
+    private bool stopping;
+    private bool started;
 
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        // Non-blocking: warmup and periodic recovery run in the background so a slow or
-        // unreachable server never delays host startup.
-        var refresher = new ExternalMcpBackgroundRefresher(connector, state, options, logger);
-        background = Task.Run(() => refresher.RunAsync(lifetime.Token), CancellationToken.None);
-        return Task.CompletedTask;
-    }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        await lifetime.CancelAsync();
-        await WaitForBackgroundAsync(cancellationToken);
-        await DisposeConnectionsAsync();
-    }
-
-    /// <summary>Background warmup/recovery task, exposed for deterministic tests.</summary>
     internal Task BackgroundActivity => background;
 
-    public IReadOnlyList<ExternalMcpServerSnapshot> GetSnapshots()
+    internal void Start()
     {
-        return state.GetSnapshots();
+        lock (gate)
+        {
+            if (started || stopping)
+            {
+                return;
+            }
+
+            started = true;
+            var refresher = new ExternalMcpBackgroundRefresher(connector, state, options, logger);
+            background = Task.Run(() => refresher.RunAsync(lifetime.Token), CancellationToken.None);
+        }
     }
 
-    public Task RefreshAsync(CancellationToken cancellationToken)
+    public IReadOnlyList<ExternalMcpServerSnapshot> GetSnapshots() => state.GetSnapshots();
+
+    public async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        return connector.RefreshAsync(state, cancellationToken);
+        if (!TryEnterOperation())
+        {
+            throw new InvalidOperationException("External MCP is shutting down.");
+        }
+
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+            await connector.RefreshAsync(state, linked.Token);
+        }
+        finally
+        {
+            ExitOperation();
+        }
     }
 
     public async Task<ExternalMcpToolCallResult> CallToolAsync(
@@ -50,122 +61,140 @@ internal sealed class ExternalMcpConnectionManager(
         IReadOnlyDictionary<string, object?>? arguments,
         CancellationToken cancellationToken)
     {
-        var connection = await connector.GetOrReconnectAsync(state, tool.ServerName, cancellationToken);
+        if (!TryEnterOperation())
+        {
+            return ExternalMcpToolCallResult.Unavailable("External MCP is shutting down.");
+        }
+
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+            return await CallCoreAsync(tool, arguments, linked.Token, cancellationToken);
+        }
+        finally
+        {
+            ExitOperation();
+        }
+    }
+
+    internal async Task ShutdownAsync()
+    {
+        Task drain;
+        lock (gate)
+        {
+            stopping = true;
+            state.StopAcceptingConnections();
+            drained ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (activeOperations == 0)
+            {
+                drained.TrySetResult();
+            }
+
+            drain = drained.Task;
+        }
+
+        await lifetime.CancelAsync();
+        await ObserveCancellationAsync(background);
+        await drain;
+        await Task.WhenAll(state.ClearConnections().Select(connection => connection.DisposeSafelyAsync(logger)));
+        lifetime.Dispose();
+    }
+
+    private async Task<ExternalMcpToolCallResult> CallCoreAsync(
+        ExternalMcpToolSnapshot tool,
+        IReadOnlyDictionary<string, object?>? arguments,
+        CancellationToken lifetimeToken,
+        CancellationToken callerToken)
+    {
+        var connection = await connector.GetOrReconnectAsync(state, tool.ServerName, lifetimeToken);
         if (connection is null)
         {
             return ExternalMcpToolCallResult.Unavailable("External MCP server is unavailable.");
         }
 
-        var firstAttempt = await TryCallAsync(connection, tool, arguments, cancellationToken);
-        if (firstAttempt is not null)
+        var firstAttempt = await connection.TryCallAsync(tool, arguments, lifetimeToken, callerToken, lifetime.Token, logger);
+        if (firstAttempt.MarkUnavailable)
         {
-            return firstAttempt;
+            await MarkUnavailableAsync(tool.ServerName);
         }
 
-        connection = await connector.GetOrReconnectAsync(state, tool.ServerName, cancellationToken);
+        if (firstAttempt.Result is not null)
+        {
+            return firstAttempt.Result;
+        }
+
+        connection = await connector.GetOrReconnectAsync(state, tool.ServerName, lifetimeToken);
         if (connection is null)
         {
             return ExternalMcpToolCallResult.Unavailable("External MCP server is unavailable after reconnect.");
         }
 
-        var secondAttempt = await TryCallAsync(connection, tool, arguments, cancellationToken);
-        return secondAttempt ?? ExternalMcpToolCallResult.Unavailable("External MCP tool call failed after reconnect.");
-    }
-
-    public void Dispose()
-    {
-        // The manager is tracked once as the concrete singleton and once via the interface
-        // factory, so the container disposes it twice; make disposal idempotent.
-        if (Interlocked.Exchange(ref disposed, 1) == 1)
+        var secondAttempt = await connection.TryCallAsync(
+            tool,
+            arguments,
+            lifetimeToken,
+            callerToken,
+            lifetime.Token,
+            logger);
+        if (secondAttempt.MarkUnavailable)
         {
-            return;
-        }
-
-        lifetime.Cancel();
-        try
-        {
-            background.GetAwaiter().GetResult();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        DisposeConnectionsAsync().GetAwaiter().GetResult();
-        lifetime.Dispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (Interlocked.Exchange(ref disposed, 1) == 1)
-        {
-            return;
-        }
-
-        await lifetime.CancelAsync();
-        await WaitForBackgroundAsync(CancellationToken.None);
-        await DisposeConnectionsAsync();
-        lifetime.Dispose();
-    }
-
-    private async Task WaitForBackgroundAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await background.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task<ExternalMcpToolCallResult?> TryCallAsync(
-        ExternalMcpServerConnection connection,
-        ExternalMcpToolSnapshot tool,
-        IReadOnlyDictionary<string, object?>? arguments,
-        CancellationToken cancellationToken)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(tool.ToolCallTimeout);
-
-        try
-        {
-            return await connection.Client.CallToolAsync(tool.OriginalName, arguments, timeout.Token);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (OperationCanceledException exception)
-        {
-            logger.LogWarning(exception, "External MCP tool call timed out for server {ServerName}.", tool.ServerName);
             await MarkUnavailableAsync(tool.ServerName);
-            return ExternalMcpToolCallResult.Unavailable(
-                "External MCP tool execution timed out.",
-                "mcp_tool_timeout");
         }
-        catch (Exception exception)
+
+        return secondAttempt.Result
+            ?? ExternalMcpToolCallResult.Unavailable("External MCP tool call failed after reconnect.");
+    }
+
+    private bool TryEnterOperation()
+    {
+        lock (gate)
         {
-            logger.LogWarning(exception, "External MCP tool call failed for server {ServerName}.", tool.ServerName);
-            await MarkUnavailableAsync(tool.ServerName);
-            return null;
+            if (stopping)
+            {
+                return false;
+            }
+
+            activeOperations++;
+            return true;
+        }
+    }
+
+    private void ExitOperation()
+    {
+        lock (gate)
+        {
+            activeOperations--;
+            if (stopping && activeOperations == 0)
+            {
+                drained?.TrySetResult();
+            }
         }
     }
 
     private async Task MarkUnavailableAsync(string serverName)
     {
-        var connection = state.RemoveConnection(serverName);
         state.MarkStatus(serverName, ExternalMcpServerStatus.Unavailable);
+        var connection = state.RemoveConnection(serverName);
         if (connection is not null)
         {
-            await connection.DisposeAsync();
+            await connection.DisposeSafelyAsync(logger);
         }
     }
 
-    private async Task DisposeConnectionsAsync()
+    private async Task ObserveCancellationAsync(Task task)
     {
-        foreach (var connection in state.ClearConnections())
+        try
         {
-            await connection.DisposeAsync();
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                "External MCP background task failed; exception type {ExceptionType}.",
+                exception.GetType().Name);
         }
     }
 }

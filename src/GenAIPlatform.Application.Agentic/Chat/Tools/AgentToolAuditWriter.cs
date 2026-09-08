@@ -59,13 +59,21 @@ internal sealed class AgentToolAuditWriter(
             toolCall.Name,
             AgentToolSchemaVersion.Resolve(toolCall.SchemaVersion),
             tool is null ? AgentToolSchemaVersion.Resolve(toolCall.SchemaVersion) : tool.Definition.SchemaVersion,
+            tool?.AuditContentPolicy ?? ToolAuditContentPolicy.IncludeContent,
+            GetUtf8Bytes(toolCall.Arguments),
             validation,
             policy,
             ToolApprovalState.NotRequired,
             validationFailed ? ToolExecutionStatus.ValidationFailed : executionStatus,
             null,
+            null,
             validationFailed ? validation.ErrorCode : errorCode,
             validationFailed ? validation.ErrorMessage : errorMessage);
+    }
+
+    private static int GetUtf8Bytes(System.Text.Json.JsonElement value)
+    {
+        return System.Text.Encoding.UTF8.GetByteCount(value.GetRawText());
     }
 
     private static AgentToolExecutionContext CreateContext(AgenticChatSession session)

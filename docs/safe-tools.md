@@ -76,18 +76,30 @@ argument names or values are not included.
 
 Tool audit records are stored in `genai.tool_audit_logs`. The current audit
 projection persists identity and correlation fields, tool/schema and policy
-metadata, validation status, approval state, execution status, the validation
-result's sanitized arguments, output, optional error information and its
-timestamp. This release does not change that projection: it is not a
-metadata-only or redaction-only audit boundary because the repository persists
-the validation result's sanitized arguments and output as JSONB. That
-audit-boundary redesign is
-deferred to BL-020.
+metadata, validation status, approval state, execution status, optional error
+code and its timestamp. Built-in tools retain their compatible content audit:
+sanitized arguments, output and optional error message. External MCP wrappers
+explicitly select a metadata-only Application policy. Their arguments JSONB is
+exactly an omission marker plus the source UTF-8 byte count; output JSONB is
+null when absent or contains only an omission marker, source and returned
+UTF-8 byte counts, and the truncation flag. Their durable error message is null.
+External provenance is never inferred from the tool name.
 
-Schema-invalid rows are a narrower safety exception to that current projection:
-they store `Invalid` validation, `ValidationFailed` execution,
-`schema_invalid`, `{}` sanitized arguments, null output and only the bounded
-schema-owned error path described above.
+External execution output is separately limited to 32 KiB of provider-neutral
+JSON by default, configurable from 23 bytes through 1 MiB. Exact-limit content
+passes. Oversized content becomes a small, valid omission object rather than a
+partial JSON prefix. This limit is not redaction: permitted content within the
+bound still reaches the response/model path, but never the metadata-only durable
+projection. Full rendered prompt logging remains disabled by default. Historical
+audit rows are not rewritten and may contain external arguments or output
+recorded by an older release.
+
+Schema-invalid built-in rows are a narrower safety exception: they store
+`Invalid` validation, `ValidationFailed` execution, `schema_invalid`, `{}`
+sanitized arguments, null output and only the bounded schema-owned error path
+described above. Registered external rows instead use the same metadata-only
+argument projection as every other external outcome and keep the durable error
+message null.
 
 ## Requirements
 
@@ -123,6 +135,6 @@ schema-owned error path described above.
 | An approval-required call without the flag stops with `ApprovalRequired`; validation and policy run first. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/GovernedAgentToolExecutor.cs` | `GovernedAgentToolExecutor.ExecuteCoreAsync` |
 | A successful approval-required execution receives `SimulatedApproved`. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/AgentToolExecutionOutcome.cs` | `AgentToolExecutionOutcome.Executed` |
 | The governed executor invokes the audit writer after it creates an execution result. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/GovernedAgentToolExecutor.cs` | `GovernedAgentToolExecutor.ExecuteAsync` |
-| The audit writer creates the current tool-audit entry projection. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/AgentToolAuditLogWriter.cs` | `AgentToolAuditLogWriter.WriteAsync` |
+| One Application projector applies content-compatible built-in audit and metadata-only external audit to executed and skipped calls. | `src/GenAIPlatform.Application.Agentic/Tools/Execution/AgentToolAuditProjection.cs` | `AgentToolAuditProjection.Create` |
 | The audit entry records approval state, but has no separate approver identity or approval token field. | `src/GenAIPlatform.Domain/Agentic/ToolAuditLogEntry.cs` | `ToolAuditLogEntry` |
-| The PostgreSQL repository inserts the current projection into `genai.tool_audit_logs`, including the validation result's sanitized arguments and output as JSONB. | `src/GenAIPlatform.Infrastructure/Agentic/PostgresToolAuditLogRepository.cs` | `PostgresToolAuditLogRepository.AddAsync` |
+| The PostgreSQL repository inserts the Application-owned projection into the existing `genai.tool_audit_logs` columns. | `src/GenAIPlatform.Infrastructure/Agentic/PostgresToolAuditLogRepository.cs` | `PostgresToolAuditLogRepository.AddAsync` |

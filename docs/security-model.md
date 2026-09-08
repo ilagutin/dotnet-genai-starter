@@ -52,7 +52,10 @@ Search all documents
 - Metadata logging is allowed: request ID, user ID, model, prompt version, tokens, cost, status, retrieved document IDs.
 - If full prompt logging is ever enabled, it must require opt-in, redaction, encryption, retention policy and restricted access.
 - Tool execution is controlled by backend policy. The model may propose tool calls, but it cannot execute tools directly and never receives infrastructure credentials. The `approveRiskyTools` request flag is demo-only simulated approval: it has no second principal and pre-approves later model-selected risky calls in that request after validation and policy checks. A successful approval-required execution is recorded as `SimulatedApproved` in the tool audit log.
+- External MCP SDK wire logging is suppressed. Lifecycle diagnostics contain only bounded sanitized server identity and exception type, never exception messages, arguments or results.
 
 ## Tools
 
 Tool execution must go through backend policy. Risky tools require simulated approval or must be rejected. Configured external MCP tools are all approval-gated. The LLM must not receive infrastructure credentials.
+
+External MCP uses two distinct payload boundaries. Provider-neutral execution JSON is limited to 32 KiB by default, with a configurable range from 23 bytes through 1 MiB, and remains available to the response/model path when within that bound; limiting is not redaction. Durable external audit is metadata-only for executed and skipped calls, with byte counts and omission/truncation markers only when a provider payload exists, but no argument values, returned content or durable error message. Built-in tool audit remains content-compatible. Historical rows are not rewritten and may contain older external content. Full rendered prompt logging remains disabled by default. Lifecycle log identity is separately sanitized and deterministically capped at 64 characters without changing canonical server identity.

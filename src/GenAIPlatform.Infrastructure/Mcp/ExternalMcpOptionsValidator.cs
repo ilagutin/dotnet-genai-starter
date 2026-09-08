@@ -14,6 +14,16 @@ internal sealed class ExternalMcpOptionsValidator : IValidateOptions<ExternalMcp
             failures.Add("External MCP MaxParallelConnects must be at least 1.");
         }
 
+        if (options.MaxToolResultBytes < ExternalMcpToolResultMapper.MinimumResultBytes)
+        {
+            failures.Add($"External MCP MaxToolResultBytes must be at least {ExternalMcpToolResultMapper.MinimumResultBytes}.");
+        }
+
+        if (options.MaxToolResultBytes > ExternalMcpOptions.MaximumToolResultBytes)
+        {
+            failures.Add($"External MCP MaxToolResultBytes cannot exceed {ExternalMcpOptions.MaximumToolResultBytes}.");
+        }
+
         if (options.RefreshInterval < TimeSpan.Zero)
         {
             failures.Add("External MCP RefreshInterval cannot be negative.");

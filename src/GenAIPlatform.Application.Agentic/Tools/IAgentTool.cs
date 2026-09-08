@@ -11,6 +11,8 @@ public interface IAgentTool
 
     ToolPolicyMetadata Policy { get; }
 
+    ToolAuditContentPolicy AuditContentPolicy => ToolAuditContentPolicy.IncludeContent;
+
     /// <summary>
     /// Applies tool-specific semantic normalization after the declared schema has accepted the payload.
     /// </summary>

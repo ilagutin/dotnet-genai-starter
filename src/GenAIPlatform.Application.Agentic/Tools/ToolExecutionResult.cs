@@ -7,4 +7,5 @@ public sealed record ToolExecutionResult(
     ToolExecutionStatus Status,
     JsonElement Output,
     string? ErrorCode = null,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    ToolExecutionPayloadMetadata? PayloadMetadata = null);

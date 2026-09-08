@@ -1,7 +1,10 @@
 using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
+using GenAIPlatform.Application.Agentic.Tools.Execute;
 using GenAIPlatform.Application.Agentic.Validation;
+using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.Configuration;
@@ -226,6 +229,61 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         Assert.DoesNotContain(secretValue, storedText, StringComparison.Ordinal);
     }
 
+    [DockerAvailableFact]
+    public async Task GovernedExternalAuditPersistence_StoresOnlyMetadataForExecutionAndRejection()
+    {
+        const string secret = "postgres-external-secret-marker";
+        var registry = new MetadataOnlyToolRegistry(secret);
+        using var scope = await CreateScopeAsync(services =>
+        {
+            services.AddSingleton<IAgentToolRegistry>(registry);
+            services.AddSingleton<IUserContext>(new TestUserContext());
+        });
+        await CleanToolAuditTableAsync(scope.ConnectionString);
+        var dispatcher = scope.Services.GetRequiredService<IApplicationDispatcher>();
+        var arguments = JsonSerializer.SerializeToElement(new { nested = new { secret } });
+
+        await dispatcher.DispatchAsync<ExecuteToolCommand, ExecuteToolResponse>(
+            new ExecuteToolCommand("external_lookup", arguments),
+            TestContext.Current.CancellationToken);
+        await dispatcher.DispatchAsync<ExecuteToolCommand, ExecuteToolResponse>(
+            new ExecuteToolCommand("mcp_RunSqlQuery", arguments),
+            TestContext.Current.CancellationToken);
+
+        var persisted = await ReadAllAuditEntriesAsync(scope.ConnectionString);
+        Assert.Equal(2, persisted.Count);
+        foreach (var entry in persisted)
+        {
+            using var argumentsJson = JsonDocument.Parse(entry.ArgumentsJson);
+            Assert.Equal(["contentOmitted", "utf8Bytes"], Keys(argumentsJson.RootElement));
+            Assert.True(argumentsJson.RootElement.GetProperty("contentOmitted").GetBoolean());
+            Assert.Equal(System.Text.Encoding.UTF8.GetByteCount(arguments.GetRawText()),
+                argumentsJson.RootElement.GetProperty("utf8Bytes").GetInt32());
+            Assert.Null(entry.ErrorMessage);
+        }
+
+        var success = Assert.Single(persisted, static entry => entry.ToolName == "external_lookup");
+        using (var outputJson = JsonDocument.Parse(success.OutputJson!))
+        {
+            Assert.Equal(
+                ["contentOmitted", "returnedUtf8Bytes", "sourceUtf8Bytes", "truncated"],
+                Keys(outputJson.RootElement));
+            Assert.False(outputJson.RootElement.GetProperty("truncated").GetBoolean());
+        }
+
+        var rejected = Assert.Single(persisted, static entry => entry.ToolName == "mcp_RunSqlQuery");
+        Assert.Equal("tool_forbidden", rejected.ErrorCode);
+        Assert.Equal("Rejected", rejected.ExecutionStatus);
+        Assert.Null(rejected.OutputJson);
+        Assert.DoesNotContain(secret, string.Join('|', persisted.SelectMany(static entry => new[]
+        {
+            entry.ArgumentsJson,
+            entry.OutputJson,
+            entry.ErrorCode,
+            entry.ErrorMessage
+        })), StringComparison.Ordinal);
+    }
+
     private static ToolAuditLogEntry CreateEntry(
         Guid id,
         Guid conversationId,
@@ -260,7 +318,7 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             DateTimeOffset.Parse("2026-05-15T12:00:00Z"));
     }
 
-    private async Task<RepositoryScope> CreateScopeAsync()
+    private async Task<RepositoryScope> CreateScopeAsync(Action<IServiceCollection>? configure = null)
     {
         var connectionString = await postgres.GetConnectionStringAsync();
         await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
@@ -275,6 +333,7 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         services.AddLogging();
         services.AddTestApplication(configuration);
         services.AddInfrastructure(configuration);
+        configure?.Invoke(services);
         var serviceProvider = services.BuildServiceProvider();
 
         return new RepositoryScope(serviceProvider, connectionString);
@@ -368,6 +427,44 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
         return entries;
     }
 
+    private static async Task<IReadOnlyList<PersistedToolAuditEntry>> ReadAllAuditEntriesAsync(
+        string connectionString)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            SELECT conversation_id, tenant_id, user_id, tool_call_id, tool_name, schema_version,
+                   policy_version, validation_status, policy_decision, approval_state,
+                   execution_status, arguments::text, output::text, error_code, error_message
+            FROM genai.tool_audit_logs
+            ORDER BY created_at_utc;
+            """, connection);
+        var entries = new List<PersistedToolAuditEntry>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            entries.Add(ReadEntry(reader));
+        }
+
+        return entries;
+    }
+
+    private static PersistedToolAuditEntry ReadEntry(NpgsqlDataReader reader)
+    {
+        return new PersistedToolAuditEntry(
+            reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
+            reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7),
+            reader.GetString(8), reader.GetString(9), reader.GetString(10), reader.GetString(11),
+            reader.IsDBNull(12) ? null : reader.GetString(12),
+            reader.IsDBNull(13) ? null : reader.GetString(13),
+            reader.IsDBNull(14) ? null : reader.GetString(14));
+    }
+
+    private static string[] Keys(JsonElement value)
+    {
+        return value.EnumerateObject().Select(static property => property.Name).Order().ToArray();
+    }
+
     private sealed record RepositoryScope(
         ServiceProvider Services,
         string ConnectionString)
@@ -415,6 +512,57 @@ public sealed class PostgresToolAuditLogRepositoryTests(PostgresRepositoryFixtur
             using var document = JsonDocument.Parse(json);
             return document.RootElement.Clone();
         }
+    }
+
+    private sealed class MetadataOnlyToolRegistry(string secret) : IAgentToolRegistry
+    {
+        public IReadOnlyList<IAgentTool> GetAvailableTools() =>
+        [
+            new MetadataOnlyTool("external_lookup", secret),
+            new MetadataOnlyTool("mcp_RunSqlQuery", secret)
+        ];
+    }
+
+    private sealed class MetadataOnlyTool(string name, string secret) : IAgentTool
+    {
+        public AiToolDefinition Definition { get; } = new(
+            name,
+            "integration external probe",
+            "snapshot-v1",
+            Json("""{"type":"object"}"""));
+
+        public ToolPolicyMetadata Policy { get; } = ToolPolicyMetadata.Allowed("integration probe");
+
+        public ToolAuditContentPolicy AuditContentPolicy => ToolAuditContentPolicy.MetadataOnly;
+
+        public ToolValidationResult Validate(JsonElement arguments) => ToolValidationResult.Valid(arguments.Clone());
+
+        public Task<ToolExecutionResult> ExecuteAsync(
+            JsonElement sanitizedArguments,
+            CancellationToken cancellationToken)
+        {
+            var output = JsonSerializer.SerializeToElement(new { content = secret });
+            var bytes = System.Text.Encoding.UTF8.GetByteCount(output.GetRawText());
+            return Task.FromResult(new ToolExecutionResult(
+                ToolExecutionStatus.Succeeded,
+                output,
+                PayloadMetadata: new ToolExecutionPayloadMetadata(bytes, bytes, false)));
+        }
+
+        private static JsonElement Json(string json)
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.Clone();
+        }
+    }
+
+    private sealed class TestUserContext : IUserContext
+    {
+        public bool IsAuthenticated => true;
+        public string? UserId => "alice";
+        public string? TenantId => "tenant-a";
+        public IReadOnlyCollection<string> Roles { get; } = ["developer"];
+        public IReadOnlyCollection<string> Groups { get; } = ["demo"];
     }
 
     private sealed record PersistedToolAuditEntry(

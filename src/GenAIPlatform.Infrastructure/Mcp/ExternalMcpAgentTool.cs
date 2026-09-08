@@ -19,6 +19,8 @@ internal sealed class ExternalMcpAgentTool(
     public ToolPolicyMetadata Policy { get; } = ToolPolicyMetadata.ApprovalRequired(
         "External MCP tools require backend approval before execution.");
 
+    public ToolAuditContentPolicy AuditContentPolicy => ToolAuditContentPolicy.MetadataOnly;
+
     public ToolValidationResult Validate(JsonElement arguments)
     {
         return ToolValidationResult.Valid(arguments.Clone());
@@ -41,8 +43,12 @@ internal sealed class ExternalMcpAgentTool(
                     ToolExecutionStatus.Failed,
                     result.Payload,
                     result.ErrorCode ?? "mcp_tool_error",
-                    result.ErrorMessage ?? "External MCP tool returned an error.")
-                : new ToolExecutionResult(ToolExecutionStatus.Succeeded, result.Payload);
+                    result.ErrorMessage ?? "External MCP tool returned an error.",
+                    result.PayloadMetadata)
+                : new ToolExecutionResult(
+                    ToolExecutionStatus.Succeeded,
+                    result.Payload,
+                    PayloadMetadata: result.PayloadMetadata);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

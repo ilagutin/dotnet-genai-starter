@@ -156,6 +156,35 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
+    public void Validate_EnforcesBoundedResultLimitRange()
+    {
+        var validator = new ExternalMcpOptionsValidator();
+
+        var belowMinimum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpToolResultMapper.MinimumResultBytes - 1
+        });
+        var minimum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpToolResultMapper.MinimumResultBytes
+        });
+        var maximum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpOptions.MaximumToolResultBytes
+        });
+        var aboveMaximum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpOptions.MaximumToolResultBytes + 1
+        });
+
+        Assert.True(belowMinimum.Failed);
+        Assert.Same(Microsoft.Extensions.Options.ValidateOptionsResult.Success, minimum);
+        Assert.Same(Microsoft.Extensions.Options.ValidateOptionsResult.Success, maximum);
+        Assert.True(aboveMaximum.Failed);
+        Assert.Equal(32 * 1024, new ExternalMcpOptions().MaxToolResultBytes);
+    }
+
+    [Fact]
     public async Task RefreshAsync_DisposesClientWhenToolSnapshotListingFails()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
@@ -271,7 +300,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: true, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
         await manager.BackgroundActivity;
 
         Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
@@ -287,7 +316,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: false, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
         await manager.BackgroundActivity;
 
         Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
@@ -309,7 +338,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: true, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
 
         Assert.False(manager.BackgroundActivity.IsCompleted);
         Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
@@ -443,7 +472,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
 
         var result = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
-        await manager.StopAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StopAsync(CancellationToken.None);
 
         Assert.Equal(ToolExecutionStatus.Succeeded, result.Status);
         Assert.True(result.Output.GetProperty("reconnected").GetBoolean());

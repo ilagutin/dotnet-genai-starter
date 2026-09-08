@@ -7,6 +7,7 @@ internal sealed record AgentToolExecutionOutcome(
     ToolApprovalState ApprovalState,
     ToolExecutionStatus ExecutionStatus,
     JsonElement? Output,
+    ToolExecutionPayloadMetadata? PayloadMetadata,
     string? ErrorCode,
     string? ErrorMessage,
     Exception? Exception = null)
@@ -18,6 +19,7 @@ internal sealed record AgentToolExecutionOutcome(
         return new AgentToolExecutionOutcome(
             ToolApprovalState.NotRequired,
             ToolExecutionStatus.Rejected,
+            null,
             null,
             errorCode,
             errorMessage);
@@ -31,6 +33,7 @@ internal sealed record AgentToolExecutionOutcome(
             ToolApprovalState.NotRequired,
             ToolExecutionStatus.ValidationFailed,
             null,
+            null,
             errorCode,
             errorMessage);
     }
@@ -41,6 +44,7 @@ internal sealed record AgentToolExecutionOutcome(
             ToolApprovalState.Required,
             ToolExecutionStatus.ApprovalRequired,
             null,
+            null,
             "approval_required",
             reason);
     }
@@ -49,6 +53,7 @@ internal sealed record AgentToolExecutionOutcome(
         bool approvalWasRequired,
         ToolExecutionStatus status,
         JsonElement output,
+        ToolExecutionPayloadMetadata? payloadMetadata,
         string? errorCode,
         string? errorMessage)
     {
@@ -56,6 +61,7 @@ internal sealed record AgentToolExecutionOutcome(
             approvalWasRequired ? ToolApprovalState.SimulatedApproved : ToolApprovalState.NotRequired,
             status,
             output,
+            payloadMetadata,
             errorCode,
             errorMessage);
     }
@@ -67,6 +73,7 @@ internal sealed record AgentToolExecutionOutcome(
         return new AgentToolExecutionOutcome(
             approvalWasRequired ? ToolApprovalState.SimulatedApproved : ToolApprovalState.NotRequired,
             ToolExecutionStatus.Failed,
+            null,
             null,
             "tool_unexpected_execution_status",
             $"Tool returned unexpected backend execution status '{status}'.");
@@ -80,6 +87,7 @@ internal sealed record AgentToolExecutionOutcome(
         return new AgentToolExecutionOutcome(
             ToolApprovalState.NotRequired,
             ToolExecutionStatus.Failed,
+            null,
             null,
             errorCode,
             errorMessage,

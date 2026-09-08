@@ -53,7 +53,9 @@ internal sealed class ExternalMcpBackgroundRefresher(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "External MCP background refresh pass failed.");
+            logger.LogWarning(
+                "External MCP background refresh pass failed; exception type {ExceptionType}.",
+                exception.GetType().Name);
         }
     }
 }

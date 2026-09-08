@@ -3,12 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-/// <summary>
-/// Establishes connections to external MCP servers: a bounded-parallel startup warmup and
-/// on-demand reconnect, both gated by <see cref="IExternalMcpConnectionPolicy"/>. Connect order
-/// is the configured server index, so parallel warmup never changes the deterministic tool
-/// listing regardless of which server finishes connecting first.
-/// </summary>
+/// <summary>Connects and snapshots configured external MCP servers.</summary>
 internal sealed class ExternalMcpConnector(
     IOptions<ExternalMcpOptions> options,
     IExternalMcpClientFactory clientFactory,
@@ -90,7 +85,14 @@ internal sealed class ExternalMcpConnector(
             timeout.CancelAfter(TimeSpan.FromSeconds(server.ConnectTimeoutSeconds));
             var client = await clientFactory.CreateAsync(server, timeout.Token);
             connection = new ExternalMcpServerConnection(server, client);
-            state.SetConnection(serverName, connection);
+            if (!state.TrySetConnection(serverName, connection))
+            {
+                await connection.DisposeSafelyAsync(logger);
+                return state.TryGetConnection(serverName, out var existing)
+                    ? existing
+                    : null;
+            }
+
             state.MarkStatus(serverName, ExternalMcpServerStatus.Available);
             policy.RecordConnectSuccess(serverName);
             return connection;
@@ -98,7 +100,7 @@ internal sealed class ExternalMcpConnector(
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             policy.RecordConnectFailure(serverName);
-            logger.LogWarning(exception, "External MCP server {ServerName} reconnect failed.", server.Name);
+            LogFailure("reconnect failed", serverName, exception);
             state.MarkStatus(serverName, ExternalMcpServerStatus.Unavailable);
             return null;
         }
@@ -125,20 +127,37 @@ internal sealed class ExternalMcpConnector(
             client = await clientFactory.CreateAsync(server, timeout.Token);
             var descriptors = await client.ListToolsAsync(timeout.Token);
             var snapshot = ExternalMcpSnapshotBuilder.Build(server, order, descriptors, ExternalMcpServerStatus.Available);
-            state.SetConnection(snapshot.ServerName, new ExternalMcpServerConnection(server, client));
+            var connection = new ExternalMcpServerConnection(server, client);
             client = null;
+            if (!state.TrySetConnection(snapshot.ServerName, connection))
+            {
+                await connection.DisposeSafelyAsync(logger);
+                return state.TryGetConnection(snapshot.ServerName, out _)
+                    ? snapshot
+                    : snapshot with { Status = ExternalMcpServerStatus.Unavailable, Tools = [] };
+            }
+
             policy.RecordConnectSuccess(serverName);
             return snapshot;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (client is not null)
+            {
+                await DisposeDetachedClientAsync(client, serverName);
+            }
+
+            throw;
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             if (client is not null)
             {
-                await client.DisposeAsync();
+                await DisposeDetachedClientAsync(client, serverName);
             }
 
             policy.RecordConnectFailure(serverName);
-            logger.LogWarning(exception, "External MCP server {ServerName} is unavailable.", server.Name);
+            LogFailure("initial connection failed", serverName, exception);
             return new ExternalMcpServerSnapshot(serverName, order, ExternalMcpServerStatus.Unavailable, []);
         }
     }
@@ -152,8 +171,27 @@ internal sealed class ExternalMcpConnector(
                 StringComparison.Ordinal));
     }
 
-    private IEnumerable<ExternalMcpServerOptions> EnabledServers()
+    private IEnumerable<ExternalMcpServerOptions> EnabledServers() =>
+        options.Value.Servers.Where(static server => server.Enabled);
+
+    private void LogFailure(string action, string serverName, Exception exception)
     {
-        return options.Value.Servers.Where(static server => server.Enabled);
+        logger.LogWarning(
+            "External MCP {Action} for server {ServerName}; exception type {ExceptionType}.",
+            action,
+            ExternalMcpNameSanitizer.SanitizeLogIdentity(serverName),
+            exception.GetType().Name);
+    }
+
+    private async Task DisposeDetachedClientAsync(IExternalMcpClient client, string serverName)
+    {
+        try
+        {
+            await client.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            LogFailure("detached client dispose failed", serverName, exception);
+        }
     }
 }

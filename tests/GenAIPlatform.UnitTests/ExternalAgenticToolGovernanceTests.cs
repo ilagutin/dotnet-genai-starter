@@ -62,6 +62,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         Assert.Equal("RequiresApproval", auditEntry.PolicyDecision);
         Assert.Equal("SimulatedApproved", auditEntry.ApprovalState);
         Assert.Equal("Succeeded", auditEntry.ExecutionStatus);
+        AssertMetadataOnly(auditEntry, hasOutput: true);
     }
 
     [Fact]
@@ -99,6 +100,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         Assert.Equal("NotExecuted", audit.Entries[1].ExecutionStatus);
         Assert.Equal("approval_required", audit.Entries[1].ErrorCode);
         Assert.Equal(server.Source.SnapshotTools[1].Definition.SchemaVersion, audit.Entries[1].SchemaVersion);
+        Assert.All(audit.Entries, entry => AssertMetadataOnly(entry, hasOutput: false));
     }
 
     [Fact]
@@ -136,6 +138,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         Assert.Equal("Valid", auditEntry.ValidationStatus);
         Assert.Equal("Forbidden", auditEntry.PolicyDecision);
         Assert.Equal("Rejected", auditEntry.ExecutionStatus);
+        AssertMetadataOnly(auditEntry, hasOutput: false);
     }
 
     [Fact]
@@ -191,7 +194,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         }
         finally
         {
-            await manager.StopAsync(CancellationToken.None);
+            await new ExternalMcpHostedService(manager).StopAsync(CancellationToken.None);
         }
     }
 
@@ -239,12 +242,13 @@ public sealed class ExternalAgenticToolGovernanceTests
             Assert.Equal(0, externalClient.CallCount);
             var entry = Assert.Single(audit.Entries);
             Assert.Equal(snapshotHash, entry.SchemaVersion);
-            Assert.Equal("{}", entry.Arguments.GetRawText());
+            Assert.True(entry.Arguments.GetProperty("contentOmitted").GetBoolean());
+            Assert.True(entry.Arguments.GetProperty("utf8Bytes").GetInt32() > 0);
             Assert.DoesNotContain("secret-value", entry.ErrorMessage ?? string.Empty, StringComparison.Ordinal);
         }
         finally
         {
-            await manager.StopAsync(CancellationToken.None);
+            await new ExternalMcpHostedService(manager).StopAsync(CancellationToken.None);
         }
     }
 
@@ -291,6 +295,7 @@ public sealed class ExternalAgenticToolGovernanceTests
         Assert.Equal(tool.Definition.SchemaVersion, auditEntry.SchemaVersion);
         Assert.Equal("NotExecuted", auditEntry.ExecutionStatus);
         Assert.Equal("budget_exceeded", auditEntry.ErrorCode);
+        AssertMetadataOnly(auditEntry, hasOutput: false);
     }
 
     [Fact]
@@ -435,6 +440,21 @@ public sealed class ExternalAgenticToolGovernanceTests
         return document.RootElement.Clone();
     }
 
+    private static void AssertMetadataOnly(ToolAuditLogEntry entry, bool hasOutput)
+    {
+        Assert.Equal(
+            ["contentOmitted", "utf8Bytes"],
+            entry.Arguments.EnumerateObject().Select(static property => property.Name).Order().ToArray());
+        Assert.Equal(hasOutput, entry.Output is not null);
+        Assert.Null(entry.ErrorMessage);
+        if (hasOutput)
+        {
+            Assert.Equal(
+                ["contentOmitted", "returnedUtf8Bytes", "sourceUtf8Bytes", "truncated"],
+                entry.Output!.Value.EnumerateObject().Select(static property => property.Name).Order().ToArray());
+        }
+    }
+
     private static string SnapshotHash(
         string name,
         string description,
@@ -563,6 +583,8 @@ public sealed class ExternalAgenticToolGovernanceTests
 
         public ToolPolicyMetadata Policy { get; } = policy;
 
+        public ToolAuditContentPolicy AuditContentPolicy => ToolAuditContentPolicy.MetadataOnly;
+
         public int ValidateCalls { get; private set; }
 
         public int ExecuteCalls { get; private set; }
@@ -591,14 +613,17 @@ public sealed class ExternalAgenticToolGovernanceTests
             CancellationToken cancellationToken)
         {
             ExecuteCalls++;
+            var output = JsonSerializer.SerializeToElement(new
+            {
+                ok = true,
+                query = sanitizedArguments.GetProperty("query").GetString(),
+                liveSchemaVersion = server.CurrentSchemaVersion(Definition.Name)
+            });
+            var outputBytes = Encoding.UTF8.GetByteCount(output.GetRawText());
             return Task.FromResult(new ToolExecutionResult(
                 ToolExecutionStatus.Succeeded,
-                JsonSerializer.SerializeToElement(new
-                {
-                    ok = true,
-                    query = sanitizedArguments.GetProperty("query").GetString(),
-                    liveSchemaVersion = server.CurrentSchemaVersion(Definition.Name)
-                })));
+                output,
+                PayloadMetadata: new ToolExecutionPayloadMetadata(outputBytes, outputBytes, false)));
         }
     }
 

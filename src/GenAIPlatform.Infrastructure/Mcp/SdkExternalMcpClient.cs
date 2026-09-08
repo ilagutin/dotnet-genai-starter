@@ -1,9 +1,8 @@
-using System.Text.Json;
 using ModelContextProtocol.Client;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-internal sealed class SdkExternalMcpClient(McpClient client) : IExternalMcpClient
+internal sealed class SdkExternalMcpClient(McpClient client, int maxToolResultBytes) : IExternalMcpClient
 {
     public async Task<IReadOnlyList<ExternalMcpToolDescriptor>> ListToolsAsync(CancellationToken cancellationToken)
     {
@@ -25,12 +24,7 @@ internal sealed class SdkExternalMcpClient(McpClient client) : IExternalMcpClien
             toolName,
             arguments,
             cancellationToken: cancellationToken);
-        var payload = JsonSerializer.SerializeToElement(result);
-
-        return new ExternalMcpToolCallResult(
-            result.IsError == true,
-            payload,
-            result.IsError == true ? "External MCP tool returned an error." : null);
+        return ExternalMcpToolResultMapper.Map(result, maxToolResultBytes);
     }
 
     public async ValueTask DisposeAsync()

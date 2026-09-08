@@ -3,6 +3,15 @@ namespace GenAIPlatform.Infrastructure.Mcp;
 public sealed class ExternalMcpOptions
 {
     public const string SectionName = "GenAIPlatform:ExternalMcp";
+    public const int DefaultMaxToolResultBytes = 32 * 1024;
+    public const int MaximumToolResultBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Maximum UTF-8 byte count of provider-neutral JSON returned to the agentic execution path.
+    /// Must be between the omission object size and 1 MiB. Oversized results are replaced with a
+    /// valid omission object.
+    /// </summary>
+    public int MaxToolResultBytes { get; init; } = DefaultMaxToolResultBytes;
 
     /// <summary>
     /// Connect to enabled servers as a startup warmup. Set false for consumers that connect on

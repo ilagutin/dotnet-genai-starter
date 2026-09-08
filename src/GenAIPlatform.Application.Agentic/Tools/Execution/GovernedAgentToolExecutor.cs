@@ -30,11 +30,14 @@ internal sealed class GovernedAgentToolExecutor(
             request.ToolName,
             AgentToolSchemaVersion.Resolve(request.RequestedSchemaVersion),
             ResolveAuditSchemaVersion(tool, request.RequestedSchemaVersion),
+            tool?.AuditContentPolicy ?? ToolAuditContentPolicy.IncludeContent,
+            GetUtf8Bytes(request.Arguments),
             validation,
             policy,
             outcome.ApprovalState,
             outcome.ExecutionStatus,
             outcome.Output,
+            outcome.PayloadMetadata,
             outcome.ErrorCode,
             outcome.ErrorMessage,
             outcome.Exception);
@@ -107,6 +110,7 @@ internal sealed class GovernedAgentToolExecutor(
                 policy.RequiresApproval,
                 execution.Status,
                 execution.Output,
+                execution.PayloadMetadata,
                 execution.ErrorCode,
                 execution.ErrorMessage);
         }
@@ -141,5 +145,10 @@ internal sealed class GovernedAgentToolExecutor(
     private static bool IsBackendExecutionStatus(ToolExecutionStatus status)
     {
         return status is ToolExecutionStatus.Succeeded or ToolExecutionStatus.Failed;
+    }
+
+    private static int GetUtf8Bytes(JsonElement value)
+    {
+        return System.Text.Encoding.UTF8.GetByteCount(value.GetRawText());
     }
 }
