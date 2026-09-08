@@ -6,7 +6,9 @@ namespace GenAIPlatform.Infrastructure.ModelGateway.OpenAi;
 
 internal sealed class OpenAiCompatibleModelClient(
     HttpClient httpClient,
-    IOptions<OpenAiCompatibleModelClientOptions> options)
+    IOptions<OpenAiCompatibleModelClientOptions> options,
+    TimeProvider? timeProvider = null,
+    Func<double>? nextRandom = null)
     : IAiModelClient
 {
     private readonly OpenAiModelCompletionExecutor executor = new(
@@ -15,7 +17,8 @@ internal sealed class OpenAiCompatibleModelClient(
         new OpenAiModelRequestFactory(),
         new OpenAiModelResponseMapper(),
         new OpenAiModelErrorMapper(),
-        new OpenAiModelRetryPolicy());
+        new OpenAiModelRetryPolicy(timeProvider, nextRandom),
+        timeProvider ?? TimeProvider.System);
 
     public async Task<AiModelResponse> CompleteAsync(
         AiModelRequest request,

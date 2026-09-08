@@ -223,6 +223,14 @@ $env:GenAIPlatform__ModelGateway__DefaultModel = "<model-name>"
 $env:GenAIPlatform__ModelGateway__OpenAiCompatible__ApiKey = "<api-key>"
 ```
 
+Chat completion retries honor positive `Retry-After` seconds or future dates,
+with exponential fallback for unusable hints and 0 through 20 percent jitter.
+The model-only `GenAIPlatform__ModelGateway__OpenAiCompatible__RetryMaxDelaySeconds`
+setting defaults to `30` and accepts `1` through `300`. The final delay saturates
+at this cap, so a 60-second hint waits 30 seconds with defaults. HTTP 501 and 505
+are not retried; 408, 429 and other 5xx are. Caller cancellation interrupts
+backoff and prevents another attempt. See [model retries](model-gateway.md#chat-completion-retries).
+
 To use an OpenAI-compatible embeddings endpoint, override configuration locally:
 
 ```powershell

@@ -70,6 +70,28 @@ the agentic local fallback are estimates. Unknown usage is not measured zero.
 Stopping after a response prevents subsequent work but cannot undo the already
 incurred in-flight model call or guarantee a hard external spending cap.
 
+## Chat completion retries
+
+The OpenAI-compatible model adapter retries HTTP 408, 429 and 5xx except 501 and
+505, plus transport failures and attempt timeouts. `MaxRetryAttempts` counts
+retries after the initial send. Terminal error codes retain their existing
+normalization, including `provider_unavailable` for 501 and 505.
+
+`GenAIPlatform:ModelGateway:OpenAiCompatible:RetryMaxDelaySeconds` defaults to 30
+and accepts 1 through 300. It caps each model retry delay, not the total call
+duration. Positive `Retry-After` seconds or future HTTP dates take precedence;
+absent, malformed, zero, negative, past or overflowing values use
+`RetryBaseDelayMilliseconds * 2^attempt` instead, starting at attempt zero.
+The delay adds 0 through 20 percent jitter, then saturates at the cap:
+`min(cap, baseDelay * (1 + 0.2 * random))`. Thus a usable hint below the cap is
+never shortened, and a 60-second hint with the default cap waits 30 seconds.
+
+Caller cancellation interrupts backoff and prevents another send. Each logical
+completion retains its payload and idempotency key across attempts; separate
+completions receive separate keys. Provider support determines whether that key
+actually deduplicates effects. This policy and cap apply only to model chat
+completions; embedding and Worker retry policies are separate.
+
 ## Routing
 
 Routing is configuration-driven:

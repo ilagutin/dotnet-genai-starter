@@ -100,6 +100,10 @@ Start here:
 - pgvector.
 - Docker Compose.
 - OpenAI-compatible model and embedding clients.
+- Model chat retries honor `Retry-After` with 0 through 20 percent jitter and a
+  final `RetryMaxDelaySeconds` cap (default 30, range 1..300); a 60-second hint
+  saturates at 30 seconds by default. HTTP 501/505 are excluded, and cancellation
+  interrupts backoff. See [model-only retry behavior](docs/model-gateway.md#chat-completion-retries).
 - Mock model and embedding clients for tests.
 - Sanitized AI request logs, usage/cost tracking and documented observability extension points.
 - xUnit.

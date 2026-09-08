@@ -18,11 +18,13 @@ public sealed class OpenAiCompatibleModelClientOptions
 
     public int RetryBaseDelayMilliseconds { get; init; } = 200;
 
+    public int RetryMaxDelaySeconds { get; init; } = 30;
+
     public bool AllowInsecureHttpForLoopback { get; init; }
 
     public bool IsValid()
     {
-        return OpenAiCompatibleEndpointPolicy.IsValid(
+        return RetryMaxDelaySeconds is >= 1 and <= 300 && OpenAiCompatibleEndpointPolicy.IsValid(
             ApiKey,
             BaseUrl,
             ChatCompletionsPath,
