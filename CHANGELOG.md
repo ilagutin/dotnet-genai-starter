@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+No unreleased changes.
+
+## v0.3.1 - 2026-09-08
+
+This correctness, safety, build and repository-hygiene patch updates the
+reference starter kit without changing its non-production framing. It groups
+the twenty completed implementation commits after `public/main`; this release
+metadata commit adds no product behavior.
+
+- Corrected public tool, approval and schema-validation claims; added a
+  deterministic RAG-demo screenshot and concise consumer-facing agent guidance.
+- Added release CI checks with immutable action pins and least-privilege jobs.
+- Added build-enforced style, centralized package versions, warnings-as-errors,
+  xUnit 4 through Microsoft Testing Platform v2, and a guarded Dependabot
+  whole-graph lock-file synchronization workflow.
+- Enforced bounded declared JSON schemas for governed tools, including frozen
+  external snapshots and explicit schemaless exceptions.
+- Made external MCP lifecycle and audit behavior safer: bounded result content,
+  metadata-only external audit records, cancelable shutdown, no automatic replay
+  after an uncertain dispatched effect, and explicit run termination.
+- Stopped agentic execution when token usage cannot be accounted for; added
+  bounded safe diagnostics; authenticated before usage authorization and return
+  403 for non-admin cross-tenant scope.
+- Honored bounded jittered `Retry-After` model backoff, aligned Worker settings
+  with the API, expanded the code-organization gate, simplified composition and
+  status wrappers, and tightened API error mapping.
+- Extracted test fixtures, removed the attribute meta-test, and split test files
+  to meet the test-file line limit.
+
 ## v0.3.0
 
 Adds MCP client support for consuming external stdio MCP servers as Agentic

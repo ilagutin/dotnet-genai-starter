@@ -39,7 +39,7 @@ External MCP servers are consumed separately by Infrastructure as Agentic tool s
 
 ## Current Status
 
-The `v0.3.0` reference release builds on the local stdio MCP host from `v0.2.0` with MCP client support for external stdio MCP servers. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
+The `v0.3.1` reference release is a correctness, safety, build and repository-hygiene patch over `v0.3.0`. It retains the local stdio MCP host from `v0.2.0` and external stdio MCP client support from `v0.3.0`. The implemented scope includes the solution skeleton, model gateway and prompt template foundation, document upload and DB-backed indexing, pgvector-backed RAG, sanitized AI request logs, pricing records, a usage endpoint, a shared API/CLI evaluation workflow, bounded agentic chat with backend-controlled demo tools, MCP tools over existing Application use cases, and configured external MCP tools routed through the same backend validation, policy, request-scoped simulated approval and audit path as built-in tools. Tool arguments are now checked against declared bounded schemas, external results are bounded, external audit projections are metadata-only, uncertain external effects stop the active run without automatic replay, and unusable token usage stops further agentic execution. The simulated approval flag is not a second-principal approval and pre-approves later risky calls selected by the model during that request.
 
 The public sample path uses deterministic mock providers. OpenAI-compatible model and embedding adapters are included behind Application ports and covered by loopback integration tests, but this repository does not commit real-provider usage output because those runs depend on private credentials, account-specific provider behavior and sanitized local evidence.
 
@@ -88,6 +88,7 @@ Start here:
 - [MCP host](docs/mcp.md)
 - [Observability](docs/observability.md)
 - [Local demo walkthrough](docs/local-demo.md)
+- [v0.3.1 release notes](docs/release-notes-v0.3.1.md)
 - [v0.3.0 release notes](docs/release-notes-v0.3.0.md)
 - [v0.2.0 release notes](docs/release-notes-v0.2.0.md)
 - [v0.1.0 release notes](docs/release-notes-v0.1.0.md)
