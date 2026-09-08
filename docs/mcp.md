@@ -152,7 +152,7 @@ Example `claude_desktop_config.json` entry:
     "genai-platform": {
       "command": "dotnet",
       "args": [
-        "E:\\git_repo\\dotnet-genai-starter\\src\\GenAIPlatform.Mcp\\bin\\Debug\\net10.0\\GenAIPlatform.Mcp.dll"
+        "C:\\path\\to\\your\\checkout\\src\\GenAIPlatform.Mcp\\bin\\Debug\\net10.0\\GenAIPlatform.Mcp.dll"
       ],
       "env": {
         "ConnectionStrings__GenAIPlatform": "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
