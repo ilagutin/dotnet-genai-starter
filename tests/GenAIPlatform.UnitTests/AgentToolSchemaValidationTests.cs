@@ -134,7 +134,9 @@ public sealed class AgentToolSchemaValidationTests
         {
             new ProbeTool(JsonSerializer.Serialize(new { type = "object", description = new string('s', 65536) })),
             new ProbeTool(NestedSchema(33)),
-            new ProbeTool(WideSchema(260))
+            new ProbeTool(WideSchema(260)),
+            new ProbeTool(NestedLiteralSchema(33)),
+            new ProbeTool(LiteralNodeSchema(260))
         };
 
         foreach (var tool in cases)
@@ -205,6 +207,176 @@ public sealed class AgentToolSchemaValidationTests
         Assert.Equal(ToolExecutionStatus.Succeeded, result.ExecutionStatus);
         Assert.Equal(1, tool.SemanticValidationCalls);
         Assert.Equal(1, tool.ExecutionCalls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TreatsPropertyDefinitionAndLiteralNamesAsData()
+    {
+        var tool = new ProbeTool("""
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$defs": {
+            "pattern": { "type": "string" },
+            "$ref": { "type": "integer" },
+            "$schema": { "type": "boolean" }
+          },
+          "type": "object",
+          "properties": {
+            "pattern": { "$ref": "#/$defs/pattern" },
+            "$ref": { "$ref": "#/$defs/$ref" },
+            "$schema": { "$ref": "#/$defs/$schema" },
+            "literal": {
+              "const": {
+                "pattern": ".*",
+                "$ref": "https://literal.example/schema",
+                "$schema": "literal"
+              }
+            },
+            "examples": {
+              "enum": [
+                { "patternProperties": {}, "$recursiveRef": "literal" }
+              ]
+            }
+          },
+          "required": [ "pattern", "$ref", "$schema", "literal", "examples" ],
+          "additionalProperties": false
+        }
+        """);
+
+        var (result, _) = await ExecuteAsync(
+            tool,
+            Json("""
+            {
+              "pattern": "plain name",
+              "$ref": 7,
+              "$schema": true,
+              "literal": {
+                "pattern": ".*",
+                "$ref": "https://literal.example/schema",
+                "$schema": "literal"
+              },
+              "examples": { "patternProperties": {}, "$recursiveRef": "literal" }
+            }
+            """),
+            approveRiskyTools: true);
+
+        Assert.Equal(ToolExecutionStatus.Succeeded, result.ExecutionStatus);
+        Assert.Equal(1, tool.ExecutionCalls);
+    }
+
+    [Theory]
+    [InlineData("additionalProperties")]
+    [InlineData("unevaluatedProperties")]
+    [InlineData("propertyNames")]
+    [InlineData("contains")]
+    [InlineData("items")]
+    [InlineData("unevaluatedItems")]
+    [InlineData("not")]
+    [InlineData("if")]
+    [InlineData("then")]
+    [InlineData("else")]
+    [InlineData("contentSchema")]
+    public async Task ExecuteAsync_RejectsRestrictedKeywordInSingleSubschemaLocation(string keyword)
+    {
+        var tool = new ProbeTool($"{{\"type\":\"array\",\"{keyword}\":{{\"pattern\":\".*\"}}}}");
+
+        var (result, _) = await ExecuteAsync(tool, Json("[]"), approveRiskyTools: true);
+
+        Assert.Equal(AgentToolArgumentValidator.SchemaDefinitionInvalidCode, result.ErrorCode);
+        Assert.Equal(0, tool.ExecutionCalls);
+    }
+
+    [Theory]
+    [InlineData("allOf")]
+    [InlineData("anyOf")]
+    [InlineData("oneOf")]
+    [InlineData("prefixItems")]
+    public async Task ExecuteAsync_RejectsRestrictedKeywordInSubschemaArray(string keyword)
+    {
+        var tool = new ProbeTool($"{{\"{keyword}\":[{{\"pattern\":\".*\"}}]}}");
+
+        var (result, _) = await ExecuteAsync(tool, Json("{}"), approveRiskyTools: true);
+
+        Assert.Equal(AgentToolArgumentValidator.SchemaDefinitionInvalidCode, result.ErrorCode);
+        Assert.Equal(0, tool.ExecutionCalls);
+    }
+
+    [Theory]
+    [InlineData("{\"$ref\":\"#/examples/0/hidden\",\"examples\":[{\"hidden\":{\"pattern\":\".*\"}}]}")]
+    [InlineData("{\"$ref\":\"#/const/hidden\",\"const\":{\"hidden\":{\"pattern\":\".*\"}}}")]
+    [InlineData("{\"$ref\":\"#/x-extension/hidden\",\"x-extension\":{\"hidden\":{\"pattern\":\".*\"}}}")]
+    public async Task ExecuteAsync_InspectsReferenceTargetReachedThroughNonSchemaContainer(string schema)
+    {
+        var tool = new ProbeTool(schema);
+
+        var (result, _) = await ExecuteAsync(tool, Json("{}"), approveRiskyTools: true);
+
+        Assert.Equal(AgentToolArgumentValidator.SchemaDefinitionInvalidCode, result.ErrorCode);
+        Assert.Equal(0, tool.ExecutionCalls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AcceptsValidReferenceTargetReachedThroughConstData()
+    {
+        var tool = new ProbeTool("""
+        {
+          "$ref": "#/const/hidden",
+          "const": { "hidden": { "type": "object" } }
+        }
+        """);
+
+        var (result, _) = await ExecuteAsync(
+            tool,
+            Json("""{"hidden":{"type":"object"}}"""),
+            approveRiskyTools: true);
+
+        Assert.Equal(ToolExecutionStatus.Succeeded, result.ExecutionStatus);
+        Assert.Equal(1, tool.ExecutionCalls);
+    }
+
+    [Theory]
+    [InlineData("#/$defs/a~1b~0c")]
+    [InlineData("#named")]
+    [InlineData("#dynamic")]
+    public async Task ExecuteAsync_SupportsLocalPointerAnchorAndDynamicAnchorReferences(string reference)
+    {
+        var referenceKeyword = reference == "#dynamic" ? "$dynamicRef" : "$ref";
+        var tool = new ProbeTool($$"""
+        {
+          "$defs": {
+            "a/b~c": { "type": "string" },
+            "named": { "$anchor": "named", "type": "string" },
+            "dynamic": { "$dynamicAnchor": "dynamic", "type": "string" }
+          },
+          "{{referenceKeyword}}": "{{reference}}"
+        }
+        """);
+
+        var (result, _) = await ExecuteAsync(tool, Json("\"value\""), approveRiskyTools: true);
+
+        Assert.Equal(ToolExecutionStatus.Succeeded, result.ExecutionStatus);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SupportsFragmentReferenceWithinNestedIdResource()
+    {
+        var tool = new ProbeTool("""
+        {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$id": "nested",
+              "$defs": { "text": { "type": "string" } },
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [ "value" ]
+        }
+        """);
+
+        var (result, _) = await ExecuteAsync(tool, Json("{\"value\":\"local\"}"), approveRiskyTools: true);
+
+        Assert.Equal(ToolExecutionStatus.Succeeded, result.ExecutionStatus);
     }
 
     [Fact]
@@ -299,6 +471,19 @@ public sealed class AgentToolSchemaValidationTests
         }
 
         return arguments;
+    }
+
+    private static string NestedLiteralSchema(int levels)
+    {
+        return JsonSerializer.Serialize(new { examples = new[] { Json(NestedArguments(levels)) } });
+    }
+
+    private static string LiteralNodeSchema(int nodeCount)
+    {
+        var examples = Enumerable.Range(0, nodeCount)
+            .Select(static index => new { value = index })
+            .ToArray();
+        return JsonSerializer.Serialize(new { examples });
     }
 
     private static string WideSchema(int propertyCount)

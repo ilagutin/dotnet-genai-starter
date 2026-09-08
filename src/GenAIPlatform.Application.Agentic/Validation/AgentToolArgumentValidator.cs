@@ -17,13 +17,13 @@ public sealed class AgentToolArgumentValidator
 
     public ToolValidationResult Validate(IAgentTool tool, JsonElement arguments)
     {
-        var schemaPath = InspectJson(tool.Definition.InputSchema, inspectSchema: true);
+        var schemaPath = AgentToolSchemaInspector.InspectStructure(tool.Definition.InputSchema);
         if (schemaPath is not null)
         {
             return InvalidDefinition(schemaPath);
         }
 
-        var argumentPath = InspectJson(arguments, inspectSchema: false);
+        var argumentPath = InspectJson(arguments);
         if (argumentPath is not null)
         {
             return InvalidPayload("/");
@@ -41,6 +41,12 @@ public sealed class AgentToolArgumentValidator
                     DialectRegistry = new DialectRegistry(),
                     VocabularyRegistry = new VocabularyRegistry()
                 });
+            schemaPath = AgentToolSchemaInspector.InspectKeywords(schema);
+            if (schemaPath is not null)
+            {
+                return InvalidDefinition(schemaPath);
+            }
+
             var results = schema.Evaluate(
                 arguments,
                 new EvaluationOptions { OutputFormat = OutputFormat.List });
@@ -59,28 +65,23 @@ public sealed class AgentToolArgumentValidator
         return tool.Validate(arguments);
     }
 
-    private static string? InspectJson(JsonElement value, bool inspectSchema)
+    private static string? InspectJson(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Undefined ||
-            (inspectSchema && value.ValueKind != JsonValueKind.Object) ||
             Encoding.UTF8.GetByteCount(value.GetRawText()) > MaxUtf8Bytes)
         {
             return "/";
         }
 
-        var nodes = 0;
-        return InspectNode(value, inspectSchema, 0, string.Empty, ref nodes);
+        return InspectNode(value, 0, string.Empty);
     }
 
     private static string? InspectNode(
         JsonElement value,
-        bool inspectSchema,
         int depth,
-        string currentPath,
-        ref int nodes)
+        string currentPath)
     {
-        nodes++;
-        if (depth > MaxJsonDepth || (inspectSchema && nodes > MaxSchemaNodes))
+        if (depth > MaxJsonDepth)
         {
             return currentPath;
         }
@@ -90,12 +91,7 @@ public sealed class AgentToolArgumentValidator
             foreach (var property in value.EnumerateObject())
             {
                 var propertyPath = AppendPath(currentPath, property.Name);
-                if (inspectSchema && IsUnsupportedKeyword(property))
-                {
-                    return propertyPath;
-                }
-
-                var nested = InspectNode(property.Value, inspectSchema, depth + 1, propertyPath, ref nodes);
+                var nested = InspectNode(property.Value, depth + 1, propertyPath);
                 if (nested is not null)
                 {
                     return nested;
@@ -108,7 +104,7 @@ public sealed class AgentToolArgumentValidator
             foreach (var item in value.EnumerateArray())
             {
                 var itemPath = AppendPath(currentPath, index.ToString(CultureInfo.InvariantCulture));
-                var nested = InspectNode(item, inspectSchema, depth + 1, itemPath, ref nodes);
+                var nested = InspectNode(item, depth + 1, itemPath);
                 if (nested is not null)
                 {
                     return nested;
@@ -119,25 +115,6 @@ public sealed class AgentToolArgumentValidator
         }
 
         return null;
-    }
-
-    private static bool IsUnsupportedKeyword(JsonProperty property)
-    {
-        if (property.Name is "pattern" or "patternProperties" or "$recursiveRef")
-        {
-            return true;
-        }
-
-        if (property.Name is "$ref" or "$dynamicRef")
-        {
-            return property.Value.ValueKind != JsonValueKind.String ||
-                property.Value.GetString() is not { } reference ||
-                !reference.StartsWith('#');
-        }
-
-        return property.Name == "$schema" &&
-            (property.Value.ValueKind != JsonValueKind.String ||
-             property.Value.GetString() != "https://json-schema.org/draft/2020-12/schema");
     }
 
     private static string FirstFailurePath(EvaluationResults results)

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -6,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.UnitTests;
 
-public sealed class ExternalMcpAgentToolSourceTests
+public sealed partial class ExternalMcpAgentToolSourceTests
 {
     [Fact]
     public void BuildPrefixedToolName_UsesProviderSafeAsciiAndStableMaxLength()
@@ -656,6 +657,17 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         public void RecordConnectFailure(string serverName)
         {
+        }
+    }
+
+    private sealed class CapturingAuditRepository : IToolAuditLogRepository
+    {
+        public List<ToolAuditLogEntry> Entries { get; } = [];
+
+        public Task AddAsync(ToolAuditLogEntry entry, CancellationToken cancellationToken)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
         }
     }
 

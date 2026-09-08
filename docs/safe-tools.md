@@ -62,7 +62,10 @@ The validator rejects untrusted or unbounded schema definitions before
 evaluation. Schemas and argument payloads are limited to 64 KiB of UTF-8 JSON,
 JSON depth is limited to 32, and schemas are limited to 256 JSON nodes.
 Non-fragment references, `pattern` and `patternProperties` are unsupported;
-local fragment references such as `#/$defs/value` remain available. A declared
+these restrictions apply at schema locations and at schema targets reached by
+references. Property and definition names are ordinary names, and literal data
+under keywords such as `const`, `enum` and `examples` is not inspected as schema.
+Local fragment references such as `#/$defs/value` remain available. A declared
 non-2020-12 dialect, malformed schema or unsupported schema definition fails
 closed as `schema_definition_invalid`. A payload that does not match an
 accepted schema fails as `schema_invalid`.
