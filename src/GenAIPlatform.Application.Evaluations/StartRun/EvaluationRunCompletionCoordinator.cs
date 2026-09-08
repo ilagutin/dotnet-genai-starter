@@ -35,7 +35,6 @@ internal sealed class EvaluationRunCompletionCoordinator(
                 }
 
                 var result = await caseRunner.RunAsync(
-                    run.RunId,
                     evaluationCase,
                     gateway,
                     retrievalConfig,

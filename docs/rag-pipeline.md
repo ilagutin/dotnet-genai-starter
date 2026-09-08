@@ -17,16 +17,19 @@ POST /api/v1/documents
 -> Worker marks document indexed or failed
 ```
 
-Supported formats:
-
-- `.txt`
-- `.md`
+The default plain-text extensions are `.txt` and `.md`.
+`GenAIPlatform:DocumentIngestion:AllowedExtensions` is the shared allowlist for
+upload validation and extraction. Entries are trimmed and normalized to lowercase;
+a configured list can restrict the defaults or add text aliases such as `.log`.
+Each entry must be a dot followed by ASCII letters or digits, and the list cannot
+be empty. Adding an extension does not add a binary parser: the same text decoder
+and invalid UTF-8 rejection apply.
 
 ## Current Implementation
 
-Document upload accepts `multipart/form-data`, stores the source file through the Infrastructure file-storage adapter, creates a document record and queues a PostgreSQL-backed indexing job.
+Document upload accepts `multipart/form-data`, stores the source file through the Infrastructure file-storage adapter, atomically creates document metadata and its first PostgreSQL-backed indexing job through `IDocumentMetadataRepository`. Worker lease, retry and atomic chunk-completion operations use `IIndexingJobRepository`.
 
-`GenAIPlatform.Worker` claims pending jobs through the Application dispatcher, extracts text from `.txt` and `.md`, chunks it with a versioned chunking profile, creates embeddings through `IEmbeddingClient` and persists chunks with embedding metadata. The default embedding provider is deterministic mock embeddings; OpenAI-compatible embeddings can be enabled through configuration.
+`GenAIPlatform.Worker` claims pending jobs through the Application dispatcher, extracts text from the configured allowed extensions, chunks it with a versioned chunking profile, creates embeddings through `IEmbeddingClient` and persists chunks with embedding metadata. The default embedding provider is deterministic mock embeddings; OpenAI-compatible embeddings can be enabled through configuration.
 
 The retrieval schema keeps the relational `real[]` embedding metadata for auditability and adds a pgvector `embedding_vector` column for retrieval. Existing rows are backfilled from `embedding_values` when `003-pgvector-retrieval.sql` is applied. Legacy rows with null, non-finite or zero-magnitude arrays are intentionally left with `embedding_vector = NULL` so one bad historical embedding cannot abort the schema upgrade. Those chunks are excluded from retrieval and the affected documents should be re-indexed to regenerate valid vectors. The schema uses dimension-specific partial HNSW indexes for the default mock embedding size and common 1536-dimension embeddings; other dimensions still work through exact pgvector search. The local compose stack uses `pgvector/pgvector:pg16`; deployments need a pgvector build that supports HNSW indexes.
 

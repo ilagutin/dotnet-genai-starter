@@ -99,7 +99,7 @@ public sealed class McpUsageToolTests
         var configuration = new ConfigurationBuilder().Build();
         services.AddLogging();
         services.AddApplicationCore(configuration);
-        services.AddUsageApplication(configuration);
+        services.AddUsageApplication();
         services.AddSingleton(context);
         services.AddSingleton(repository);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });

@@ -23,7 +23,6 @@ internal sealed class EvaluationCaseRunner(
     TimeProvider timeProvider)
 {
     public async Task<EvaluationCaseResult> RunAsync(
-        Guid runId,
         EvaluationCase evaluationCase,
         ModelGatewayRequestSettings gateway,
         EvaluationRetrievalConfiguration retrievalConfig,
@@ -31,7 +30,6 @@ internal sealed class EvaluationCaseRunner(
         string userId,
         CancellationToken cancellationToken)
     {
-        _ = runId;
         var started = timeProvider.GetTimestamp();
         try
         {

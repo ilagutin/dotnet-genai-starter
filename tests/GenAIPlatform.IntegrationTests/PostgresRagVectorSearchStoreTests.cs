@@ -291,7 +291,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var alicePrivate = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -299,7 +299,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             [1f, 0f],
             now);
         var bobPrivate = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "bob",
             DocumentAccessLevel.Private,
@@ -307,7 +307,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             [1f, 0f],
             now.AddSeconds(1));
         var tenantPublic = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "bob",
             DocumentAccessLevel.TenantPublic,
@@ -315,7 +315,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             [0.9f, 0.1f],
             now.AddSeconds(2));
         var otherTenantPublic = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-b",
             ownerUserId: "mallory",
             DocumentAccessLevel.TenantPublic,
@@ -365,7 +365,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -396,7 +396,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var newerDocument = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -404,7 +404,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             [1f, 0f],
             now.AddMinutes(1));
         var olderDocument = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -438,7 +438,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var compatible = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -448,7 +448,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             embeddingModel: "embedding-model-a",
             embeddingProvider: "provider-a");
         var incompatibleProvider = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -458,7 +458,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             embeddingModel: "embedding-model-a",
             embeddingProvider: "provider-b");
         var incompatibleModel = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -494,7 +494,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var compatible = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -504,7 +504,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             embeddingModel: "shared-model",
             embeddingProvider: "shared-provider");
         var mismatchedDimensions = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -539,7 +539,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var compatible = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -549,7 +549,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
             embeddingModel: "shared-model",
             embeddingProvider: "shared-provider");
         var zeroMagnitude = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -585,7 +585,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
 
         var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
         var document = await CreateIndexedDocumentAsync(
-            scope.Repository,
+            scope,
             tenantId: "tenant-a",
             ownerUserId: "alice",
             DocumentAccessLevel.Private,
@@ -805,7 +805,8 @@ public sealed class PostgresRagVectorSearchStoreTests(
         return new SearchScope(
             serviceProvider,
             connectionString,
-            serviceProvider.GetRequiredService<IDocumentIngestionRepository>(),
+            serviceProvider.GetRequiredService<IDocumentMetadataRepository>(),
+            serviceProvider.GetRequiredService<IIndexingJobRepository>(),
             serviceProvider.GetRequiredService<IRagVectorSearchStore>());
     }
 
@@ -868,7 +869,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
     }
 
     private static async Task<Document> CreateIndexedDocumentAsync(
-        IDocumentIngestionRepository repository,
+        SearchScope scope,
         string tenantId,
         string ownerUserId,
         DocumentAccessLevel accessLevel,
@@ -888,11 +889,11 @@ public sealed class PostgresRagVectorSearchStoreTests(
             documentVersion);
         var job = CreatePendingJob(document.Id, now);
 
-        await repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             job,
             TestContext.Current.CancellationToken);
-        var claimed = await repository.ClaimNextPendingJobAsync(
+        var claimed = await scope.Jobs.ClaimNextPendingJobAsync(
             $"worker-{document.Id:n}",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
@@ -900,7 +901,7 @@ public sealed class PostgresRagVectorSearchStoreTests(
         Assert.NotNull(claimed);
         Assert.Equal(document.Id, claimed.DocumentId);
 
-        var completed = await repository.ReplaceChunksAndCompleteIndexingAsync(
+        var completed = await scope.Jobs.ReplaceChunksAndCompleteIndexingAsync(
             document,
             claimed,
             [CreateChunk(document, title, embedding, now, embeddingModel, embeddingProvider)],
@@ -1116,13 +1117,10 @@ public sealed class PostgresRagVectorSearchStoreTests(
     private sealed record SearchScope(
         ServiceProvider Services,
         string ConnectionString,
-        IDocumentIngestionRepository Repository,
+        IDocumentMetadataRepository Metadata, IIndexingJobRepository Jobs,
         IRagVectorSearchStore VectorSearchStore)
         : IDisposable
     {
-        public void Dispose()
-        {
-            Services.Dispose();
-        }
+        public void Dispose() => Services.Dispose();
     }
 }

@@ -35,6 +35,7 @@ internal sealed class DocumentIngestionOptionsValidator(IOptions<EmbeddingOption
 
     private static bool IsSupportedDocumentExtension(string? extension)
     {
-        return extension?.Trim().ToLowerInvariant() is ".txt" or ".md";
+        return extension is { Length: > 1 } && extension[0] == '.' &&
+            extension.Skip(1).All(char.IsAsciiLetterOrDigit);
     }
 }

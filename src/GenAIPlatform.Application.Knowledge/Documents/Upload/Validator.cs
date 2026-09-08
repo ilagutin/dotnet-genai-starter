@@ -6,14 +6,11 @@ namespace GenAIPlatform.Application.Knowledge.Documents;
 
 internal sealed class UploadDocumentValidator : AbstractValidator<UploadDocumentCommand>
 {
-    private readonly HashSet<string> allowedExtensions;
+    private readonly DocumentIngestionOptions ingestionOptions;
 
     public UploadDocumentValidator(IOptions<DocumentIngestionOptions> options)
     {
-        var ingestionOptions = options.Value;
-        allowedExtensions = ingestionOptions.AllowedExtensions
-            .Select(static value => value.Trim().ToLowerInvariant())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ingestionOptions = options.Value;
 
         RuleFor(request => request.FileName)
             .Custom(ValidateFileName);
@@ -53,7 +50,7 @@ internal sealed class UploadDocumentValidator : AbstractValidator<UploadDocument
             return;
         }
 
-        if (!allowedExtensions.Contains(normalizedExtension))
+        if (!ingestionOptions.AllowsExtension(normalizedExtension))
         {
             context.AddFailure($"Document extension '{normalizedExtension}' is not supported.");
         }

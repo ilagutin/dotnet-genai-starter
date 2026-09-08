@@ -44,9 +44,10 @@ public sealed class RagExceptionBoundaryTests
                 services.RemoveAll<IEmbeddingClient>();
                 services.AddSingleton<IEmbeddingClient>(embeddings);
                 services.RemoveAll<IRagVectorSearchStore>();
-                services.AddSingleton<IRagVectorSearchStore>(provider => store = new ReadySearchStore(
-                    new PostgresRagVectorSearchStore(new PostgresRagConnectionFactory(dataSource),
-                        provider.GetRequiredService<ILogger<PostgresRagSearchExecutor>>())));
+                services.AddScoped(_ => new PostgresRagConnectionFactory(dataSource));
+                services.AddScoped<PostgresRagVectorSearchStore>();
+                services.AddScoped<IRagVectorSearchStore>(provider => store = new ReadySearchStore(
+                    provider.GetRequiredService<PostgresRagVectorSearchStore>()));
             });
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

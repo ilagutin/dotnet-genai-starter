@@ -77,7 +77,7 @@ public sealed class DocumentIngestionTests
     [Fact]
     public async Task PlainTextDocumentTextExtractor_RejectsInvalidUtf8()
     {
-        var extractor = new PlainTextDocumentTextExtractor();
+        var extractor = new PlainTextDocumentTextExtractor(Options.Create(new DocumentIngestionOptions()));
         await using var stream = new MemoryStream([0xC3, 0x28]);
 
         var exception = await Assert.ThrowsAsync<DocumentValidationException>(() =>
@@ -1654,7 +1654,7 @@ public sealed class DocumentIngestionTests
 
     private static IApplicationDispatcher CreateUploadDocumentHandler(
         IDocumentStorage storage,
-        IDocumentIngestionRepository repository,
+        IDocumentMetadataRepository repository,
         IUserContext userContext,
         DocumentIngestionOptions options,
         TimeProvider timeProvider)
@@ -1671,7 +1671,7 @@ public sealed class DocumentIngestionTests
 
     private static IApplicationDispatcher CreateUploadDocumentHandler(
         IDocumentStorage storage,
-        IDocumentIngestionRepository repository,
+        IDocumentMetadataRepository repository,
         IDocumentStorageCleanupRepository cleanupRepository,
         IUserContext userContext,
         CapturingLogger<DocumentUploadRollbackCoordinator> logger,
@@ -1682,7 +1682,7 @@ public sealed class DocumentIngestionTests
         services.AddLogging();
         services.AddTestApplication(new Microsoft.Extensions.Configuration.ConfigurationManager());
         services.AddSingleton<IDocumentStorage>(storage);
-        services.AddSingleton<IDocumentIngestionRepository>(repository);
+        services.AddSingleton<IDocumentMetadataRepository>(repository);
         services.AddSingleton(cleanupRepository);
         services.AddSingleton<IUserContext>(userContext);
         services.AddSingleton<ILogger<DocumentUploadRollbackCoordinator>>(logger);
@@ -1787,7 +1787,8 @@ public sealed class DocumentIngestionTests
     {
         var services = new ServiceCollection();
         services.AddTestApplication(new Microsoft.Extensions.Configuration.ConfigurationManager());
-        services.AddSingleton<IDocumentIngestionRepository>(repository);
+        services.AddSingleton<IDocumentMetadataRepository>(repository);
+        services.AddSingleton<IIndexingJobRepository>(repository);
         services.AddSingleton<IDocumentStorage>(
             storage ?? new InMemoryDocumentStorage("First paragraph with enough text for chunking.\n\nSecond paragraph."));
         services.AddSingleton<IEmbeddingClient>(embeddingClient ?? new FakeEmbeddingClient());
@@ -1841,7 +1842,7 @@ public sealed class DocumentIngestionTests
     private static IRequestHandler<ProcessDocumentStorageCleanupCommand, ProcessDocumentStorageCleanupResponse> CreateProcessDocumentStorageCleanupHandler(
         IDocumentStorage storage,
         IDocumentStorageCleanupRepository cleanupRepository,
-        IDocumentIngestionRepository repository,
+        IDocumentMetadataRepository repository,
         CapturingLogger<DocumentStorageCleanupRequestProcessor>? logger = null,
         DocumentIngestionOptions? options = null)
     {
@@ -1849,7 +1850,7 @@ public sealed class DocumentIngestionTests
         services.AddTestApplication(new Microsoft.Extensions.Configuration.ConfigurationManager());
         services.AddSingleton<IDocumentStorage>(storage);
         services.AddSingleton(cleanupRepository);
-        services.AddSingleton<IDocumentIngestionRepository>(repository);
+        services.AddSingleton<IDocumentMetadataRepository>(repository);
         services.AddSingleton<ILogger<DocumentStorageCleanupRequestProcessor>>(
             logger ?? new CapturingLogger<DocumentStorageCleanupRequestProcessor>());
         services.AddSingleton(Options.Create(options ?? new DocumentIngestionOptions
@@ -1864,7 +1865,7 @@ public sealed class DocumentIngestionTests
             .GetRequiredService<IRequestHandler<ProcessDocumentStorageCleanupCommand, ProcessDocumentStorageCleanupResponse>>();
     }
 
-    private sealed class CapturingDocumentRepository : IDocumentIngestionRepository
+    private sealed class CapturingDocumentRepository : IDocumentMetadataRepository, IIndexingJobRepository
     {
         private bool jobClaimed;
 
@@ -2315,10 +2316,8 @@ public sealed class DocumentIngestionTests
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeEmbeddingClient : IEmbeddingClient
@@ -2486,10 +2485,8 @@ public sealed class DocumentIngestionTests
             string provider,
             string model,
             DateTimeOffset usedAtUtc,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<PricingRecord?>(null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<PricingRecord?>(null);
     }
 
     private sealed class FakeUserContext(

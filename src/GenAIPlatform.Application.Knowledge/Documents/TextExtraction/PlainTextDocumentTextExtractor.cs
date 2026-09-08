@@ -1,9 +1,10 @@
 using System.Text;
 using GenAIPlatform.Domain.Documents;
+using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Knowledge.Documents;
 
-public sealed class PlainTextDocumentTextExtractor : ITextExtractor
+public sealed class PlainTextDocumentTextExtractor(IOptions<DocumentIngestionOptions> options) : ITextExtractor
 {
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(
         encoderShouldEmitUTF8Identifier: false,
@@ -14,7 +15,7 @@ public sealed class PlainTextDocumentTextExtractor : ITextExtractor
         Stream content,
         CancellationToken cancellationToken)
     {
-        if (document.SourceExtension is not ".txt" and not ".md")
+        if (!options.Value.AllowsExtension(document.SourceExtension))
         {
             throw new DocumentValidationException(
                 $"Document extension '{document.SourceExtension}' is not supported for text extraction.");

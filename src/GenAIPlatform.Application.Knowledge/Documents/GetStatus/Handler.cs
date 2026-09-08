@@ -4,7 +4,7 @@ using GenAIPlatform.Application.Core.Security;
 namespace GenAIPlatform.Application.Knowledge.Documents;
 
 public sealed class GetDocumentStatusHandler(
-    IDocumentIngestionRepository repository,
+    IDocumentMetadataRepository repository,
     IUserContext userContext)
     : IRequestHandler<GetDocumentStatusQuery, DocumentStatusResponse?>
 {

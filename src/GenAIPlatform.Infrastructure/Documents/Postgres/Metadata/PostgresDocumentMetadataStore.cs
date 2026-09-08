@@ -7,7 +7,8 @@ using Npgsql;
 namespace GenAIPlatform.Infrastructure.Documents.Postgres.Metadata;
 
 internal sealed class PostgresDocumentMetadataStore(
-    PostgresDocumentIngestionConnectionFactory connectionFactory)
+    PostgresDocumentIngestionConnectionFactory connectionFactory,
+    PostgresDocumentStatusReader statusReader) : IDocumentMetadataRepository
 {
     public async Task CreateDocumentWithJobAsync(
         Document document,
@@ -78,6 +79,10 @@ internal sealed class PostgresDocumentMetadataStore(
             ? PostgresDocumentMapper.Map(reader)
             : null;
     }
+
+    public Task<DocumentIndexingStatusSnapshot?> GetDocumentStatusAsync(
+        Guid documentId, string tenantId, string? userId, CancellationToken cancellationToken) =>
+        statusReader.GetDocumentStatusAsync(documentId, tenantId, userId, cancellationToken);
 
     private static async Task InsertDocumentAsync(
         NpgsqlConnection connection,

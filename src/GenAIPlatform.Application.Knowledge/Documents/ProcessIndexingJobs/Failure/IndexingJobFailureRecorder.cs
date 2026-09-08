@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 
 internal sealed class IndexingJobFailureRecorder(
-    IDocumentIngestionRepository repository,
+    IIndexingJobRepository repository,
     IOptions<DocumentIngestionOptions> ingestionOptions,
     IndexingJobLeaseCoordinator leaseCoordinator,
     IndexingJobFailurePolicy failurePolicy,

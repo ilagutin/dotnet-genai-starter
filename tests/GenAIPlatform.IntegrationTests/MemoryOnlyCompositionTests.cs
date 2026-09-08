@@ -28,7 +28,9 @@ public sealed class MemoryOnlyCompositionTests
         services.AddSingleton<IBackgroundUserContext>(serviceProvider =>
             serviceProvider.GetRequiredService<MemoryOnlyUserContext>());
         services.AddSingleton<IDocumentStorage, MemoryOnlyDocumentStorage>();
-        services.AddSingleton<IDocumentIngestionRepository, MemoryOnlyDocumentIngestionRepository>();
+        services.AddSingleton<MemoryOnlyDocumentIngestionRepository>();
+        services.AddSingleton<IDocumentMetadataRepository>(provider => provider.GetRequiredService<MemoryOnlyDocumentIngestionRepository>());
+        services.AddSingleton<IIndexingJobRepository>(provider => provider.GetRequiredService<MemoryOnlyDocumentIngestionRepository>());
         services.AddSingleton<IDocumentStorageCleanupRepository, MemoryOnlyDocumentStorageCleanupRepository>();
         services.AddSingleton<IEmbeddingClient, MemoryOnlyEmbeddingClient>();
         services.AddSingleton<IRagVectorSearchStore, MemoryOnlyRagVectorSearchStore>();
@@ -64,97 +66,73 @@ public sealed class MemoryOnlyCompositionTests
             string fileName,
             Stream content,
             long maxSizeBytes,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException<StoredDocument>(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException<StoredDocument>(new NotSupportedException());
 
         public Task CommitAsync(
             StoredDocument document,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
 
         public Task<Stream> OpenReadAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException<Stream>(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException<Stream>(new NotSupportedException());
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
     }
 
-    private sealed class MemoryOnlyDocumentIngestionRepository : IDocumentIngestionRepository
+    private sealed class MemoryOnlyDocumentIngestionRepository : IDocumentMetadataRepository, IIndexingJobRepository
     {
         public Task CreateDocumentWithJobAsync(
             Document document,
             IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
 
         public Task<bool> DocumentExistsAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<Document?> GetDocumentForIndexingAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<Document?>(null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Document?>(null);
 
         public Task<DocumentIndexingStatusSnapshot?> GetDocumentStatusAsync(
             Guid documentId,
             string tenantId,
             string? userId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<DocumentIndexingStatusSnapshot?>(null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<DocumentIndexingStatusSnapshot?>(null);
 
         public Task<IndexingJob?> ClaimNextPendingJobAsync(
             string workerId,
             TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IndexingJob?>(null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IndexingJob?>(null);
 
         public Task<int> MarkExpiredIndexingJobsFailedAsync(
             TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(0);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(0);
 
         public Task<bool> RenewProcessingLeaseAsync(
             Guid documentId,
             IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<bool> ReplaceChunksAndCompleteIndexingAsync(
             Document document,
             IndexingJob indexingJob,
             IReadOnlyCollection<DocumentChunk> chunks,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<bool> MarkIndexingFailedAsync(
             Guid documentId,
@@ -162,85 +140,65 @@ public sealed class MemoryOnlyCompositionTests
             string failureReason,
             bool retry,
             TimeSpan retryDelay,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<bool> ReleaseProcessingJobAndRefundAttemptAsync(
             Guid documentId,
             IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class MemoryOnlyDocumentStorageCleanupRepository : IDocumentStorageCleanupRepository
     {
         public Task RecordAsync(
             DocumentStorageCleanupRequest request,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromException(new NotSupportedException());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
 
         public Task<IReadOnlyCollection<DocumentStorageCleanupRequest>> ClaimBatchAsync(
             string workerId,
             int maxRequests,
             TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyCollection<DocumentStorageCleanupRequest>>([]);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<DocumentStorageCleanupRequest>>([]);
 
         public Task<bool> CompleteAsync(
             DocumentStorageCleanupRequest request,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<bool> DeferAsync(
             DocumentStorageCleanupRequest request,
             string failureReason,
             TimeSpan retryDelay,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         public Task<bool> FailAsync(
             DocumentStorageCleanupRequest request,
             string failureReason,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(false);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class MemoryOnlyEmbeddingClient : IEmbeddingClient
     {
         public Task<EmbeddingResponse> CreateEmbeddingAsync(
             EmbeddingRequest request,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new EmbeddingResponse([0], "memory-only", "test", 0, request.CorrelationId));
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new EmbeddingResponse([0], "memory-only", "test", 0, request.CorrelationId));
     }
 
     private sealed class MemoryOnlyRagVectorSearchStore : IRagVectorSearchStore
     {
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<RetrievedDocumentChunk>>([]);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RetrievedDocumentChunk>>([]);
     }
 }

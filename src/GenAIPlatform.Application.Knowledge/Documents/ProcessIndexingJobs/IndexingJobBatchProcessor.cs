@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 
 internal sealed class IndexingJobBatchProcessor(
-    IDocumentIngestionRepository repository,
+    IIndexingJobRepository repository,
     IOptions<DocumentIngestionOptions> ingestionOptions,
     IndexingJobLeaseCoordinator leaseCoordinator,
     IndexingJobProcessor jobProcessor,

@@ -16,7 +16,6 @@ internal static class DocumentsSetup
         services.TryAddScoped<DocumentUploadFactory>();
         services.TryAddScoped<DocumentUploadRollbackCoordinator>();
         services.TryAddScoped<DocumentUploadRollbackInvoker>();
-        services.TryAddScoped<DocumentUploadWorkflow>();
         services.TryAddScoped<ITextExtractor, PlainTextDocumentTextExtractor>();
         services.TryAddScoped<ITextChunker, TextChunker>();
         services.TryAddScoped<IndexingJobLeaseCoordinator>();

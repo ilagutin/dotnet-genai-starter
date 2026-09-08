@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
 
 internal sealed class IndexingJobLeaseCoordinator(
-    IDocumentIngestionRepository repository,
+    IIndexingJobRepository repository,
     IOptions<DocumentIngestionOptions> ingestionOptions,
     ILogger<IndexingJobLeaseCoordinator> logger)
 {

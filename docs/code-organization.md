@@ -171,10 +171,12 @@ Rationale: the API exception handler depends only on Application and Domain exce
 
 ## Dependency Registration
 
-- Each `src/*` project exposes a single `Setup.cs` at its root as the DI entry point. The class is named `Setup` and contains the public `AddX` extension method (`AddApplicationCore`, `AddKnowledgeApplication`, `AddGenerationApplication`, `AddAgenticApplication`, `AddEvaluationsApplication`, `AddUsageApplication`, `AddInfrastructure`, etc.). `Setup.cs` doubles as the assembly marker — prefer `typeof(Setup).Assembly` over arbitrary types for embedded-resource or assembly-scanning operations.
+- Each service-owning `src/*` project exposes a single root `Setup.cs` as its DI entry point, with a public `AddX` extension method. Domain contains no service registration and has no `Setup.cs`. Where present, `Setup` also acts as the assembly marker; prefer `typeof(Setup).Assembly` for resource or assembly scans.
 - Feature-level registration delegates live next to the feature as `<Feature>Setup.cs` (for example `ChatSetup.cs`, `AgenticSetup.cs`, `DocumentsSetup.cs`). The root `Setup.cs` composes these via feature-named extension methods such as `AddChatApplication`, `AddAgenticApplication` or `AddDocumentsApplication`.
 - Hosts compose explicit per-module registrations instead of a root `AddApplication` method. This keeps memory-only hosts able to reference `Core + Knowledge` without pulling in chat generation.
 - DI modules should register dependencies only; they should not contain business validation or runtime decision logic.
+- Persistence and RAG collaborators are scoped. OpenAI model collaborators and its typed HTTP executor are transient; the `IAiModelClient` selector remains scoped. Composition supplies `TimeProvider.System` only when no clock was registered.
+- Stable status strings are defined by seven explicit, exhaustive Domain enum mappings. Undefined values fail closed. The code gate exempts only their exact canonical paths from status-literal detection; size checks still apply.
 
 ## Self-Documenting Code
 

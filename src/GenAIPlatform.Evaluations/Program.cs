@@ -19,7 +19,7 @@ var builder = EvaluationCliHost.CreateBuilder(args);
 builder.Services.AddApplicationCore(builder.Configuration);
 builder.Services.AddKnowledgeApplication(builder.Configuration);
 builder.Services.AddGenerationApplication(builder.Configuration);
-builder.Services.AddEvaluationsApplication(builder.Configuration);
+builder.Services.AddEvaluationsApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddEvaluations();
 

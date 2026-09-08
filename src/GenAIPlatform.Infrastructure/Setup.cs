@@ -11,7 +11,9 @@ using GenAIPlatform.Application.Usage.GetUsage;
 using GenAIPlatform.Infrastructure.Agentic;
 using GenAIPlatform.Infrastructure.Configuration;
 using GenAIPlatform.Infrastructure.Documents.Local;
+using GenAIPlatform.Infrastructure.Documents.Postgres.IndexingJobs;
 using GenAIPlatform.Infrastructure.Documents.Postgres.Ingestion;
+using GenAIPlatform.Infrastructure.Documents.Postgres.Metadata;
 using GenAIPlatform.Infrastructure.Documents.Postgres.StorageCleanup;
 using GenAIPlatform.Infrastructure.Embeddings.Mock;
 using GenAIPlatform.Infrastructure.Embeddings.OpenAi;
@@ -100,7 +102,14 @@ public static class Setup
 
     private static IServiceCollection AddModelGatewayAdapters(this IServiceCollection services)
     {
-        services.AddHttpClient<OpenAiCompatibleModelClient>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHttpClient<OpenAiModelCompletionExecutor>();
+        services.TryAddTransient<OpenAiModelOptionsResolver>();
+        services.TryAddTransient<OpenAiModelRequestFactory>();
+        services.TryAddTransient<OpenAiModelResponseMapper>();
+        services.TryAddTransient<OpenAiModelErrorMapper>();
+        services.TryAddTransient<OpenAiModelRetryPolicy>();
+        services.TryAddTransient<OpenAiCompatibleModelClient>();
 
         services.TryAddScoped<MockAiModelClient>();
         services.TryAddScoped<IAiModelClient>(serviceProvider =>
@@ -163,7 +172,19 @@ public static class Setup
         services.TryAddScoped<PostgresEvaluationConnectionFactory>();
         services.TryAddScoped<PostgresRagConnectionFactory>();
         services.TryAddScoped<IDocumentStorage, LocalDocumentStorage>();
-        services.TryAddScoped<IDocumentIngestionRepository, PostgresDocumentIngestionRepository>();
+        services.TryAddScoped<PostgresDocumentStatusReader>();
+        services.TryAddScoped<IDocumentMetadataRepository, PostgresDocumentMetadataStore>();
+        services.TryAddScoped<PostgresIndexingSchemaReadiness>();
+        services.TryAddScoped<PostgresIndexingJobLock>();
+        services.TryAddScoped<PostgresIndexingJobClaimStore>();
+        services.TryAddScoped<PostgresIndexingJobLeaseStore>();
+        services.TryAddScoped<PostgresIndexingJobFailureStore>();
+        services.TryAddScoped<PostgresIndexingJobCompletionStore>();
+        services.TryAddScoped<IIndexingJobRepository, PostgresIndexingJobRepository>();
+        services.TryAddScoped<RagVectorSearchQueryValidator>();
+        services.TryAddScoped<RagVectorSearchErrorMapper>();
+        services.TryAddScoped<PostgresRagReadinessChecker>();
+        services.TryAddScoped<PostgresRagSearchExecutor>();
         services.TryAddScoped<IDocumentStorageCleanupRepository, PostgresDocumentStorageCleanupRepository>();
         services.TryAddScoped<IRagVectorSearchStore, PostgresRagVectorSearchStore>();
         services.TryAddScoped<PostgresObservabilityRepository>();

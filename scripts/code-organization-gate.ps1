@@ -22,6 +22,16 @@ $transitionalTestLineLimits = @{
     "tests/GenAIPlatform.IntegrationTests/DocumentEndpointTests.cs" = 906
     "tests/GenAIPlatform.IntegrationTests/PostgresDocumentIngestionRepositoryTests.cs" = 833
 }
+# Only these compatibility mappings may contain stable status literals.
+$statusMappingPaths = @(
+    "src/GenAIPlatform.Domain/Agentic/Statuses/AgenticChatStatusMapping.cs",
+    "src/GenAIPlatform.Domain/Agentic/Statuses/ToolExecutionStatusMapping.cs",
+    "src/GenAIPlatform.Domain/Agentic/Statuses/ToolApprovalStateMapping.cs",
+    "src/GenAIPlatform.Domain/Agentic/Statuses/ToolValidationStatusMapping.cs",
+    "src/GenAIPlatform.Domain/Evaluations/Statuses/EvaluationRunStatusMapping.cs",
+    "src/GenAIPlatform.Domain/Evaluations/Statuses/EvaluationCaseStatusMapping.cs",
+    "src/GenAIPlatform.Domain/Observability/AiRequestLogStatusMapping.cs"
+)
 $generatedFilePattern = '(?i)(\.g|\.g\.i|\.designer|\.generated)\.cs$'
 $statusStringPattern = '"(Passed|Succeeded|Failed|Running|Canceled|TimedOut|Rejected|ValidationFailed|ApprovalRequired|NotExecuted|NotRequired|SimulatedApproved|Valid|Invalid)"'
 $typePattern = "(?m)^\s*(?:(?:public|internal|private|protected)\s+)?(?:(?:sealed|abstract|static|partial|readonly)\s+)*(?:class|record|struct|enum|interface)\s+([A-Za-z_][A-Za-z0-9_]*)"
@@ -117,6 +127,8 @@ foreach ($sourceRoot in $sourceRoots) {
                 Lines = $lineCount
             })
         }
+
+        if ($statusMappingPaths -ccontains $relativePath) { continue }
 
         $statusMatches = Select-String -LiteralPath $file.FullName -Pattern $statusStringPattern -AllMatches
         foreach ($statusMatch in $statusMatches) {

@@ -115,13 +115,14 @@ public sealed class OpenAiModelCompletionRetryTests
 
     private static OpenAiCompatibleModelClient CreateClient(HttpClient http, TimeProvider clock)
     {
-        return new(http, Options.Create(new OpenAiCompatibleModelClientOptions
+        return new(new OpenAiModelCompletionExecutor(http, new OpenAiModelOptionsResolver(Options.Create(new OpenAiCompatibleModelClientOptions
         {
             ApiKey = "test-key",
             RetryBaseDelayMilliseconds = 100,
             MaxRetryAttempts = 2,
             TimeoutSeconds = 5
-        }), clock, () => 0);
+        })), new OpenAiModelRequestFactory(), new OpenAiModelResponseMapper(),
+            new OpenAiModelErrorMapper(), new OpenAiModelRetryPolicy(clock, () => 0), clock));
     }
 
     private static AiModelRequest Request() => new("retry-test", "test", [new(AiMessageRole.User, "synthetic prompt")]);

@@ -5,6 +5,18 @@ namespace GenAIPlatform.IntegrationTests;
 
 public sealed class ConfigurationSecretTests
 {
+    [Theory]
+    [InlineData("src/GenAIPlatform.Api/appsettings.json")]
+    [InlineData("src/GenAIPlatform.Mcp/appsettings.json")]
+    public async Task RunnerVersion_MatchesCurrentDevelopmentVersion(string relativePath)
+    {
+        var configuration = await ReadAppSettingsAsync(relativePath);
+        var version = (await File.ReadAllTextAsync(Path.Combine(FindRepositoryRoot(), "VERSION"))).Trim() + "-dev";
+        Assert.Equal("0.3.0-dev", version);
+        Assert.Equal(version, configuration["GenAIPlatform"]!["Application"]!["RunnerVersion"]!.GetValue<string>());
+        Assert.Equal(version, new GenAIPlatform.Application.Core.Configuration.ApplicationOptions().RunnerVersion);
+    }
+
     [Fact]
     public async Task WorkerAppSettings_ContainsOnlyConsumedConfigurationMatchingApiValues()
     {

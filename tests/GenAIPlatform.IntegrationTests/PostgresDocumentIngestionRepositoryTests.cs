@@ -27,16 +27,16 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var claimed = await scope.Repository.ClaimNextPendingJobAsync(
+        var claimed = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
-        var duplicateClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var duplicateClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
@@ -47,7 +47,7 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
         Assert.Equal("worker-1", claimed.WorkerId);
         Assert.Null(duplicateClaim);
 
-        var completed = await scope.Repository.ReplaceChunksAndCompleteIndexingAsync(
+        var completed = await scope.Jobs.ReplaceChunksAndCompleteIndexingAsync(
             document,
             claimed,
             [
@@ -58,17 +58,17 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
 
         Assert.True(completed);
 
-        var ownerStatus = await scope.Repository.GetDocumentStatusAsync(
+        var ownerStatus = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "alice",
             TestContext.Current.CancellationToken);
-        var otherUserStatus = await scope.Repository.GetDocumentStatusAsync(
+        var otherUserStatus = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "bob",
             TestContext.Current.CancellationToken);
-        var otherTenantStatus = await scope.Repository.GetDocumentStatusAsync(
+        var otherTenantStatus = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-b",
             "alice",
@@ -96,17 +96,17 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var sameTenantStatus = await scope.Repository.GetDocumentStatusAsync(
+        var sameTenantStatus = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "bob",
             TestContext.Current.CancellationToken);
-        var otherTenantStatus = await scope.Repository.GetDocumentStatusAsync(
+        var otherTenantStatus = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-b",
             "bob",
@@ -131,16 +131,16 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var firstClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var firstClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
-        var reclaimed = await scope.Repository.ClaimNextPendingJobAsync(
+        var reclaimed = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.Zero,
             TestContext.Current.CancellationToken);
@@ -150,19 +150,19 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
         Assert.Equal(2, reclaimed.Attempts);
         Assert.Equal("worker-2", reclaimed.WorkerId);
 
-        var staleCompletion = await scope.Repository.ReplaceChunksAndCompleteIndexingAsync(
+        var staleCompletion = await scope.Jobs.ReplaceChunksAndCompleteIndexingAsync(
             document,
             firstClaim,
             [CreateChunk(document, position: 0, text: "stale chunk", now)],
             TestContext.Current.CancellationToken);
-        var staleFailure = await scope.Repository.MarkIndexingFailedAsync(
+        var staleFailure = await scope.Jobs.MarkIndexingFailedAsync(
             document.Id,
             firstClaim,
             "stale failure",
             retry: false,
             TimeSpan.Zero,
             TestContext.Current.CancellationToken);
-        var currentFailure = await scope.Repository.MarkIndexingFailedAsync(
+        var currentFailure = await scope.Jobs.MarkIndexingFailedAsync(
             document.Id,
             reclaimed,
             "current failure",
@@ -170,7 +170,7 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             TimeSpan.Zero,
             TestContext.Current.CancellationToken);
 
-        var status = await scope.Repository.GetDocumentStatusAsync(
+        var status = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "alice",
@@ -199,23 +199,23 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             skewedAppClock);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, skewedAppClock);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var firstClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var firstClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(firstClaim);
 
-        var renewed = await scope.Repository.RenewProcessingLeaseAsync(
+        var renewed = await scope.Jobs.RenewProcessingLeaseAsync(
             document.Id,
             firstClaim,
             TestContext.Current.CancellationToken);
-        var reclaimAttempt = await scope.Repository.ClaimNextPendingJobAsync(
+        var reclaimAttempt = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
@@ -241,19 +241,19 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var firstClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var firstClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(firstClaim);
 
-        var retryRecorded = await scope.Repository.MarkIndexingFailedAsync(
+        var retryRecorded = await scope.Jobs.MarkIndexingFailedAsync(
             document.Id,
             firstClaim,
             "temporary failure",
@@ -261,12 +261,12 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             TimeSpan.FromMilliseconds(200),
             TestContext.Current.CancellationToken);
         var pendingJob = await ReadJobOwnershipAsync(scope.ConnectionString, firstClaim.Id);
-        var unavailableClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var unavailableClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(300));
-        var retryClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var retryClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
@@ -300,15 +300,15 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             Attempts = 1
         };
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             exhaustedJob,
             TestContext.Current.CancellationToken);
 
-        var cleanupCount = await scope.Repository.MarkExpiredIndexingJobsFailedAsync(
+        var cleanupCount = await scope.Jobs.MarkExpiredIndexingJobsFailedAsync(
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
-        var status = await scope.Repository.GetDocumentStatusAsync(
+        var status = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "alice",
@@ -335,22 +335,22 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 1, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
-        var processingJob = await scope.Repository.ClaimNextPendingJobAsync(
+        var processingJob = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(processingJob);
 
-        var cleanupCount = await scope.Repository.MarkExpiredIndexingJobsFailedAsync(
+        var cleanupCount = await scope.Jobs.MarkExpiredIndexingJobsFailedAsync(
             TimeSpan.Zero,
             TestContext.Current.CancellationToken);
         var ownership = await ReadJobOwnershipAsync(scope.ConnectionString, processingJob.Id);
-        var status = await scope.Repository.GetDocumentStatusAsync(
+        var status = await scope.Metadata.GetDocumentStatusAsync(
             document.Id,
             "tenant-a",
             "alice",
@@ -381,23 +381,23 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await scope.Repository.CreateDocumentWithJobAsync(
+        await scope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var firstClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var firstClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-1",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(firstClaim);
 
-        var released = await scope.Repository.ReleaseProcessingJobAndRefundAttemptAsync(
+        var released = await scope.Jobs.ReleaseProcessingJobAndRefundAttemptAsync(
             document.Id,
             firstClaim,
             TestContext.Current.CancellationToken);
-        var retryClaim = await scope.Repository.ClaimNextPendingJobAsync(
+        var retryClaim = await scope.Jobs.ClaimNextPendingJobAsync(
             "worker-2",
             TimeSpan.FromHours(1),
             TestContext.Current.CancellationToken);
@@ -425,12 +425,12 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
             now);
         var indexingJob = CreatePendingJob(document.Id, maxAttempts: 3, now);
 
-        await secondScope.Repository.CreateDocumentWithJobAsync(
+        await secondScope.Metadata.CreateDocumentWithJobAsync(
             document,
             indexingJob,
             TestContext.Current.CancellationToken);
 
-        var persistedDocument = await secondScope.Repository.GetDocumentForIndexingAsync(
+        var persistedDocument = await secondScope.Metadata.GetDocumentForIndexingAsync(
             document.Id,
             TestContext.Current.CancellationToken);
 
@@ -460,22 +460,22 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
                 now);
             var indexingJob = CreatePendingJob(document.Id, maxAttempts: 1, now);
 
-            await scope.Repository.CreateDocumentWithJobAsync(
+            await scope.Metadata.CreateDocumentWithJobAsync(
                 document,
                 indexingJob,
                 TestContext.Current.CancellationToken);
 
             var expiredException = await Assert.ThrowsAsync<DocumentIndexingSchemaNotReadyException>(() =>
-                scope.Repository.MarkExpiredIndexingJobsFailedAsync(
+                scope.Jobs.MarkExpiredIndexingJobsFailedAsync(
                     TimeSpan.FromHours(1),
                     TestContext.Current.CancellationToken));
             var claimException = await Assert.ThrowsAsync<DocumentIndexingSchemaNotReadyException>(() =>
-                scope.Repository.ClaimNextPendingJobAsync(
+                scope.Jobs.ClaimNextPendingJobAsync(
                     "worker-old-schema",
                     TimeSpan.FromHours(1),
                     TestContext.Current.CancellationToken));
             var ownership = await ReadJobOwnershipAsync(connectionString, indexingJob.Id);
-            var status = await scope.Repository.GetDocumentStatusAsync(
+            var status = await scope.Metadata.GetDocumentStatusAsync(
                 document.Id,
                 "tenant-a",
                 "alice",
@@ -496,7 +496,7 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
                 connectionString,
                 "003-pgvector-retrieval.sql");
 
-            var claimed = await scope.Repository.ClaimNextPendingJobAsync(
+            var claimed = await scope.Jobs.ClaimNextPendingJobAsync(
                 "worker-after-migration",
                 TimeSpan.FromHours(1),
                 TestContext.Current.CancellationToken);
@@ -555,7 +555,8 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
         return new RepositoryScope(
             serviceProvider,
             connectionString,
-            serviceProvider.GetRequiredService<IDocumentIngestionRepository>());
+            serviceProvider.GetRequiredService<IDocumentMetadataRepository>(),
+            serviceProvider.GetRequiredService<IIndexingJobRepository>());
     }
 
     private async Task<string> CreateAlternateDatabaseConnectionStringAsync()
@@ -709,13 +710,10 @@ public sealed class PostgresDocumentIngestionRepositoryTests(
     private sealed record RepositoryScope(
         ServiceProvider Services,
         string ConnectionString,
-        IDocumentIngestionRepository Repository)
+        IDocumentMetadataRepository Metadata, IIndexingJobRepository Jobs)
         : IDisposable
     {
-        public void Dispose()
-        {
-            Services.Dispose();
-        }
+        public void Dispose() => Services.Dispose();
     }
 
     private sealed record JobOwnership(

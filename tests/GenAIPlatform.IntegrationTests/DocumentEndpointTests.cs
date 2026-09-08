@@ -27,9 +27,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
@@ -74,8 +74,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
-                services.AddSingleton<IDocumentIngestionRepository, FakeDocumentRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
+                services.AddSingleton<IDocumentMetadataRepository, FakeDocumentRepository>();
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
         using var client = uploadFactory.CreateClient(new WebApplicationFactoryClientOptions
@@ -97,9 +97,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
@@ -134,9 +134,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             });
@@ -166,9 +166,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, LimitThrowingDocumentStorage>();
             }));
@@ -203,9 +203,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             });
@@ -586,7 +586,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         string? FailureReason,
         DateTimeOffset UpdatedAtUtc);
 
-    private sealed class FakeDocumentRepository : IDocumentIngestionRepository
+    private sealed class FakeDocumentRepository : IDocumentMetadataRepository
     {
         private Document? document;
         private IndexingJob? indexingJob;
@@ -606,17 +606,13 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task<bool> DocumentExistsAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(document?.Id == documentId);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(document?.Id == documentId);
 
         public Task<Document?> GetDocumentForIndexingAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(document?.Id == documentId ? document : null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(document?.Id == documentId ? document : null);
 
         public Task<DocumentIndexingStatusSnapshot?> GetDocumentStatusAsync(
             Guid documentId,
@@ -636,56 +632,6 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
                 new DocumentIndexingStatusSnapshot(document, indexingJob, ChunkCount: 0));
         }
 
-        public Task<IndexingJob?> ClaimNextPendingJobAsync(
-            string workerId,
-            TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IndexingJob?>(null);
-        }
-
-        public Task<int> MarkExpiredIndexingJobsFailedAsync(
-            TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(0);
-        }
-
-        public Task<bool> RenewProcessingLeaseAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> ReplaceChunksAndCompleteIndexingAsync(
-            Document document,
-            IndexingJob indexingJob,
-            IReadOnlyCollection<DocumentChunk> chunks,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> MarkIndexingFailedAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            string failureReason,
-            bool retry,
-            TimeSpan retryDelay,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> ReleaseProcessingJobAndRefundAttemptAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     private sealed class FakeDocumentStorage : IDocumentStorage
@@ -712,10 +658,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task CommitAsync(
             StoredDocument document,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<Stream> OpenReadAsync(
             string storagePath,
@@ -727,10 +671,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class LimitThrowingDocumentStorage : IDocumentStorage
@@ -761,10 +703,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class CapturingEmbeddingClient : IEmbeddingClient
@@ -789,10 +729,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     {
         public RagVectorSearchQuery? Query { get; private set; }
 
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
@@ -805,10 +743,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
     private sealed class ThrowingRagVectorSearchStore : IRagVectorSearchStore
     {
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
@@ -825,10 +761,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     {
         public int Calls { get; private set; }
 
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
