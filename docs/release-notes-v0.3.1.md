@@ -31,6 +31,14 @@ Release date: 2026-09-08.
 - The code-organization gate scans production and test sources, composition and
   status wrappers were reduced, multipart 413 handling is typed, and test
   fixtures were extracted under the test-file line limit.
+- Agentic partial usage now rejects inconsistent totals before another tool or
+  model step. Argument-limit audit errors exclude supplied argument content, and
+  schema validation distinguishes schema locations from literal property names
+  while checking local reference targets.
+- The two-host mock quickstart uses shared clone-derived storage and prebuilt
+  host commands. Its recorded local mock evidence shows one indexed chunk, one
+  RAG citation and one usage request; the neutral README image and architecture
+  diagrams reflect that path and the local MCP host.
 
 ## Removed
 
@@ -61,11 +69,11 @@ Release date: 2026-09-08.
 
 ## Verification Scope
 
-The final local release gate passed on 2026-09-08: locked restore, build with
-zero warnings and errors, formatting verification, the code-organization gate
-(564 authored C# files: 481 production and 83 test), and the package
-vulnerability gate. The mandatory Docker-backed MTP solution suite passed 672
-tests with zero failures and zero skipped tests.
+The final local release gate passed on 2026-09-08: locked restore, Release build
+with zero warnings and errors, formatting verification, the code-organization
+gate (566 authored C# files: 482 production and 84 test), and the package
+vulnerability gate. The mandatory Docker-backed MTP solution suite passed 711
+tests: 457 unit and 254 integration, with zero failures and zero skipped tests.
 
 Tests use mock and loopback providers only; no live-provider or real
 child-process MCP execution is claimed.

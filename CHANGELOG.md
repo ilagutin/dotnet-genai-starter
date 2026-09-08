@@ -7,9 +7,7 @@ No unreleased changes.
 ## v0.3.1 - 2026-09-08
 
 This correctness, safety, build and repository-hygiene patch updates the
-reference starter kit without changing its non-production framing. It groups
-the twenty completed implementation commits after `public/main`; this release
-metadata commit adds no product behavior.
+reference starter kit without changing its non-production framing.
 
 - Corrected public tool, approval and schema-validation claims; added a
   deterministic RAG-demo screenshot and concise consumer-facing agent guidance.
@@ -30,6 +28,11 @@ metadata commit adds no product behavior.
   status wrappers, and tightened API error mapping.
 - Extracted test fixtures, removed the attribute meta-test, and split test files
   to meet the test-file line limit.
+- Tightened agentic partial-usage consistency, content-free argument-limit audit
+  errors, and JSON-schema location and reference-target checks.
+- Made the two-host mock demo reproducible with shared clone-derived storage and
+  prebuilt host commands; refreshed its neutral recorded evidence image and the
+  local MCP host architecture diagrams.
 
 ## v0.3.0
 
