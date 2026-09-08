@@ -13,7 +13,7 @@ internal sealed class ExternalMcpServerConnection(
 
     public IExternalMcpClient Client { get; } = client;
 
-    public async Task<(ExternalMcpToolCallResult? Result, bool MarkUnavailable)> TryCallAsync(
+    public async Task<(ExternalMcpToolCallResult Result, bool MarkUnavailable)> TryCallAsync(
         ExternalMcpToolSnapshot tool,
         IReadOnlyDictionary<string, object?>? arguments,
         CancellationToken operationToken,
@@ -21,31 +21,36 @@ internal sealed class ExternalMcpServerConnection(
         CancellationToken shutdownToken,
         ILogger logger)
     {
+        callerToken.ThrowIfCancellationRequested();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(operationToken);
         timeout.CancelAfter(tool.ToolCallTimeout);
+        callerToken.ThrowIfCancellationRequested();
+        if (timeout.IsCancellationRequested || shutdownToken.IsCancellationRequested)
+        {
+            return (ExternalMcpToolCallResult.Unavailable("External MCP tool dispatch was canceled."), false);
+        }
+
         try
         {
             return (await Client.CallToolAsync(tool.OriginalName, arguments, timeout.Token), false);
         }
         catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
         {
-            throw;
+            throw new ExternalMcpCallCanceledException(callerToken);
         }
         catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested)
         {
-            return (ExternalMcpToolCallResult.Unavailable("External MCP is shutting down."), false);
+            return (ExternalMcpToolCallResult.OutcomeUnknown(), true);
         }
         catch (OperationCanceledException exception)
         {
             LogFailure(logger, "timed out", tool.ServerName, exception);
-            return (ExternalMcpToolCallResult.Unavailable(
-                "External MCP tool execution timed out.",
-                "mcp_tool_timeout"), true);
+            return (ExternalMcpToolCallResult.OutcomeUnknown(), true);
         }
         catch (Exception exception)
         {
             LogFailure(logger, "call failure", tool.ServerName, exception);
-            return (null, true);
+            return (ExternalMcpToolCallResult.OutcomeUnknown(), true);
         }
     }
 

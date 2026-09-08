@@ -382,7 +382,7 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsFailedOnTimeoutAndMarksServerUnavailable()
+    public async Task ExecuteAsync_ReturnsUnknownOnTimeoutAndMarksServerUnavailable()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("slow", "Slow tool.", Schema()));
         client.CallAsync = async (_, _, cancellationToken) =>
@@ -399,13 +399,16 @@ public sealed class ExternalMcpAgentToolSourceTests
         var timeout = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
 
         Assert.Equal(ToolExecutionStatus.Failed, timeout.Status);
-        Assert.Equal("mcp_tool_timeout", timeout.ErrorCode);
+        Assert.Equal("mcp_tool_outcome_unknown", timeout.ErrorCode);
+        Assert.Null(timeout.PayloadMetadata);
+        Assert.Equal(1, client.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
         Assert.True(client.Disposed);
         Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsFailedOnCallerCancellation()
+    public async Task ExecuteAsync_PreCanceledCallerDoesNotDispatchOrInvalidateConnection()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("slow", "Slow tool.", Schema()));
         client.CallAsync = async (_, _, cancellationToken) =>
@@ -421,10 +424,12 @@ public sealed class ExternalMcpAgentToolSourceTests
         using var canceled = new CancellationTokenSource();
         await canceled.CancelAsync();
 
-        var cancellation = await tool.ExecuteAsync(EmptyObject(), canceled.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ExecuteAsync(EmptyObject(), canceled.Token));
 
-        Assert.Equal(ToolExecutionStatus.Failed, cancellation.Status);
-        Assert.Equal("mcp_tool_canceled", cancellation.ErrorCode);
+        Assert.Equal(0, client.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
+        Assert.False(client.Disposed);
+        Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
     }
 
     [Fact]
@@ -455,10 +460,15 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReconnectsAfterFailedCallAndStopDisposesConnections()
+    public async Task ExecuteAsync_DoesNotReplayLostResponseAndReconnectsOnlyForLaterRequest()
     {
+        var remoteEffects = 0;
         var firstClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
-        firstClient.CallAsync = (_, _, _) => throw new InvalidOperationException("server died");
+        firstClient.CallAsync = (_, _, _) =>
+        {
+            remoteEffects++;
+            throw new InvalidOperationException("private remote response lost");
+        };
         var secondClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
         secondClient.CallResult = new ExternalMcpToolCallResult(
             IsError: false,
@@ -472,14 +482,61 @@ public sealed class ExternalMcpAgentToolSourceTests
         var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
 
         var result = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+
+        Assert.Equal(ToolExecutionStatus.Failed, result.Status);
+        Assert.Equal("mcp_tool_outcome_unknown", result.ErrorCode);
+        Assert.DoesNotContain("private remote", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Null(result.PayloadMetadata);
+        Assert.Equal(1, remoteEffects);
+        Assert.Equal(1, firstClient.CallCount);
+        Assert.Equal(0, secondClient.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
+        Assert.True(firstClient.Disposed);
+        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+
+        var laterResult = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
         await new ExternalMcpHostedService(manager).StopAsync(CancellationToken.None);
 
-        Assert.Equal(ToolExecutionStatus.Succeeded, result.Status);
-        Assert.True(result.Output.GetProperty("reconnected").GetBoolean());
+        Assert.Equal(ToolExecutionStatus.Succeeded, laterResult.Status);
+        Assert.True(laterResult.Output.GetProperty("reconnected").GetBoolean());
+        Assert.Equal(1, remoteEffects);
+        Assert.Equal(1, secondClient.CallCount);
         Assert.Equal(2, factory.CreateCount("Server"));
         Assert.True(firstClient.Disposed);
         Assert.True(secondClient.Disposed);
         Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LaterReconnectFailureIsUnavailableWithoutDispatchAndCanRecover()
+    {
+        var first = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", Schema()));
+        first.CallAsync = (_, _, _) => throw new InvalidOperationException("response lost");
+        var recovered = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", Schema()));
+        var factory = new FakeExternalMcpClientFactory();
+        factory.EnqueueClient("Server", first);
+        factory.EnqueueFailure("Server");
+        factory.EnqueueClient("Server", recovered);
+        var manager = CreateManager(factory, Server("Server"));
+        await manager.RefreshAsync(CancellationToken.None);
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+
+        var unknown = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal("mcp_tool_outcome_unknown", unknown.ErrorCode);
+        Assert.Equal(1, factory.CreateCount("Server"));
+
+        var unavailable = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal("mcp_server_unavailable", unavailable.ErrorCode);
+        Assert.Equal(2, factory.CreateCount("Server"));
+        Assert.Equal(1, first.CallCount);
+        Assert.Equal(0, recovered.CallCount);
+        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+
+        var success = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal(ToolExecutionStatus.Succeeded, success.Status);
+        Assert.Equal(3, factory.CreateCount("Server"));
+        Assert.Equal(1, recovered.CallCount);
+        await new ExternalMcpHostedService(manager).DisposeAsync();
     }
 
     [Fact]
@@ -498,7 +555,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var sdkArguments = ExternalMcpJsonRoundTrip.ToSdkArguments(document.RootElement);
 
         // The MCP SDK re-serializes these arguments via System.Text.Json. Assert the round-trip
-        // preserves nested shape and raw numeric tokens (no lossy double/long conversion) — a
+        // preserves nested shape and raw numeric tokens (no lossy double/long conversion) - a
         // hand-rolled JsonElement mapper would break this.
         var reserialized = JsonSerializer.SerializeToElement(sdkArguments);
         Assert.Equal("9007199254740993", reserialized.GetProperty("bigInt").GetRawText());
@@ -666,6 +723,8 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         public bool Disposed { get; private set; }
 
+        public int CallCount { get; private set; }
+
         public static FakeExternalMcpClient WithTools(params ExternalMcpToolDescriptor[] tools)
         {
             return new FakeExternalMcpClient { Tools = tools };
@@ -683,6 +742,7 @@ public sealed class ExternalMcpAgentToolSourceTests
             IReadOnlyDictionary<string, object?>? arguments,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             CapturedArguments = arguments;
             return CallAsync is null
                 ? Task.FromResult(CallResult)

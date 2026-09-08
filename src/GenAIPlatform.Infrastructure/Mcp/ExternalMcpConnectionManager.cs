@@ -61,6 +61,7 @@ internal sealed class ExternalMcpConnectionManager(
         IReadOnlyDictionary<string, object?>? arguments,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!TryEnterOperation())
         {
             return ExternalMcpToolCallResult.Unavailable("External MCP is shutting down.");
@@ -106,43 +107,38 @@ internal sealed class ExternalMcpConnectionManager(
         CancellationToken lifetimeToken,
         CancellationToken callerToken)
     {
-        var connection = await connector.GetOrReconnectAsync(state, tool.ServerName, lifetimeToken);
+        ExternalMcpServerConnection? connection;
+        try
+        {
+            connection = await connector.GetOrReconnectAsync(state, tool.ServerName, lifetimeToken);
+        }
+        catch (OperationCanceledException) when (!callerToken.IsCancellationRequested && lifetime.IsCancellationRequested)
+        {
+            return ExternalMcpToolCallResult.Unavailable("External MCP is shutting down.");
+        }
+
+        callerToken.ThrowIfCancellationRequested();
         if (connection is null)
         {
             return ExternalMcpToolCallResult.Unavailable("External MCP server is unavailable.");
         }
 
-        var firstAttempt = await connection.TryCallAsync(tool, arguments, lifetimeToken, callerToken, lifetime.Token, logger);
-        if (firstAttempt.MarkUnavailable)
+        try
+        {
+            var attempt = await connection.TryCallAsync(tool, arguments, lifetimeToken, callerToken, lifetime.Token, logger);
+            if (attempt.MarkUnavailable)
+            {
+                await MarkUnavailableAsync(tool.ServerName);
+            }
+
+            // A lost response cannot prove that the remote operation had no effect. Never replay it.
+            return attempt.Result;
+        }
+        catch (ExternalMcpCallCanceledException)
         {
             await MarkUnavailableAsync(tool.ServerName);
+            throw;
         }
-
-        if (firstAttempt.Result is not null)
-        {
-            return firstAttempt.Result;
-        }
-
-        connection = await connector.GetOrReconnectAsync(state, tool.ServerName, lifetimeToken);
-        if (connection is null)
-        {
-            return ExternalMcpToolCallResult.Unavailable("External MCP server is unavailable after reconnect.");
-        }
-
-        var secondAttempt = await connection.TryCallAsync(
-            tool,
-            arguments,
-            lifetimeToken,
-            callerToken,
-            lifetime.Token,
-            logger);
-        if (secondAttempt.MarkUnavailable)
-        {
-            await MarkUnavailableAsync(tool.ServerName);
-        }
-
-        return secondAttempt.Result
-            ?? ExternalMcpToolCallResult.Unavailable("External MCP tool call failed after reconnect.");
     }
 
     private bool TryEnterOperation()

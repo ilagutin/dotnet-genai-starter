@@ -50,29 +50,34 @@ internal sealed class ExternalMcpAgentTool(
                     result.Payload,
                     PayloadMetadata: result.PayloadMetadata);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (ExternalMcpCallCanceledException)
         {
+            var unknown = ExternalMcpToolCallResult.OutcomeUnknown();
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
-                ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_canceled",
-                "External MCP tool execution was canceled.");
+                unknown.Payload,
+                unknown.ErrorCode,
+                unknown.ErrorMessage);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (OperationCanceledException)
         {
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_timeout",
-                "External MCP tool execution timed out.");
+                "mcp_server_unavailable",
+                "External MCP server is unavailable.");
         }
         catch (Exception)
         {
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_failed",
-                "External MCP tool execution failed.");
+                "mcp_server_unavailable",
+                "External MCP server is unavailable.");
         }
     }
 }

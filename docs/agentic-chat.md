@@ -56,8 +56,23 @@ or no matching record is configured, the loop falls back to the local
 a bounded cost budget in mock/local setups.
 
 The loop stops with a bounded status such as `StepLimitExceeded`,
-`TimedOut`, `ToolLimitExceeded`, `BudgetExceeded`, `ToolRejected` or
+`TimedOut`, `ToolLimitExceeded`, `BudgetExceeded`, `ToolRejected`, `ToolFailed` or
 `ApprovalRequired`.
+
+`ToolFailed` means that backend execution did not confirm successful completion.
+For external MCP tools, a lost response, timeout or shutdown cancellation after
+dispatch produces `mcp_tool_outcome_unknown`: the remote operation may have
+completed. The loop stops, audits remaining proposals as not executed and makes
+no further model call. The connection manager never replays the uncertain call;
+reconnecting for a later independent request does not resolve its outcome.
+
+Caller cancellation after external MCP dispatch first writes a metadata-only
+audit with `mcp_tool_outcome_unknown`, null durable output and null error message,
+then propagates cancellation. Cancellation before dispatch executes no tool.
+`Failed` audit status does not prove that the remote operation failed or rolled
+back. Reconcile with the remote system using the audit identity and correlation
+fields before retrying. There is no exactly-once or remote idempotency guarantee.
+See [MCP external tool governance](mcp.md#external-tool-governance-guarantees).
 
 ## Non-goals
 

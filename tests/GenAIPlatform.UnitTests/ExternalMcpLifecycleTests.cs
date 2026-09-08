@@ -167,13 +167,84 @@ public sealed class ExternalMcpLifecycleTests
         var rejected = await manager.CallToolAsync(Tool(), null, CancellationToken.None);
         await hosted.DisposeAsync();
 
-        Assert.Equal("mcp_server_unavailable", result.ErrorCode);
+        Assert.Equal("mcp_tool_outcome_unknown", result.ErrorCode);
         Assert.Equal("mcp_server_unavailable", rejected.ErrorCode);
-        Assert.Contains("shutting down", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("may have completed", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Null(result.PayloadMetadata);
         Assert.Equal(1, client.CallCalls);
         Assert.Equal(1, factory.CreateCalls);
         Assert.Equal(1, client.DisposeCalls);
         Assert.DoesNotContain(manager.GetSnapshots(), static snapshot => snapshot.IsAvailable);
+    }
+
+    [Fact]
+    public async Task CancellationDuringConnectDoesNotDispatchOrReportUnknownOutcome()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingClient();
+        var factory = new RecordingFactory(client)
+        {
+            CreateOverride = async token =>
+            {
+                entered.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return client;
+            }
+        };
+        var manager = CreateManager(factory);
+        using var caller = new CancellationTokenSource();
+        var call = manager.CallToolAsync(Tool(), null, caller.Token);
+        await entered.Task;
+
+        await caller.CancelAsync();
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+
+        Assert.IsNotType<ExternalMcpCallCanceledException>(exception);
+        Assert.Equal(0, client.CallCalls);
+        Assert.Equal(1, factory.CreateCalls);
+        await new ExternalMcpHostedService(manager).DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ShutdownDuringConnectIsUnavailableWithoutDispatch()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingClient();
+        var factory = new RecordingFactory(client)
+        {
+            CreateOverride = async token =>
+            {
+                entered.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return client;
+            }
+        };
+        var manager = CreateManager(factory);
+        var call = manager.CallToolAsync(Tool(), null, CancellationToken.None);
+        await entered.Task;
+        await new ExternalMcpHostedService(manager).DisposeAsync();
+
+        Assert.Equal("mcp_server_unavailable", (await call).ErrorCode);
+        Assert.Equal(0, client.CallCalls);
+        Assert.Equal(1, factory.CreateCalls);
+    }
+
+    [Fact]
+    public async Task ConnectionPreDispatchShutdownDoesNotDispatchOrInvalidate()
+    {
+        var client = new RecordingClient();
+        var connection = new ExternalMcpServerConnection(Server(), client);
+        using var shutdown = new CancellationTokenSource();
+        await shutdown.CancelAsync();
+
+        var attempt = await connection.TryCallAsync(
+            Tool(), null, shutdown.Token, CancellationToken.None, shutdown.Token,
+            NullLogger<ExternalMcpConnectionManager>.Instance);
+
+        Assert.Equal("mcp_server_unavailable", attempt.Result.ErrorCode);
+        Assert.False(attempt.MarkUnavailable);
+        Assert.Equal(0, client.CallCalls);
+        await connection.DisposeAsync();
     }
 
     [Fact]

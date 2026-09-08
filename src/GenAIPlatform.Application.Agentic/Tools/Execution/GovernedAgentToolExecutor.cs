@@ -47,6 +47,7 @@ internal sealed class GovernedAgentToolExecutor(
             request.Context,
             CancellationToken.None);
 
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 

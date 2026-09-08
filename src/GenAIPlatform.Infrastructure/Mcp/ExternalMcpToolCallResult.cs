@@ -10,6 +10,13 @@ internal sealed record ExternalMcpToolCallResult(
     string? ErrorCode = null,
     ToolExecutionPayloadMetadata? PayloadMetadata = null)
 {
+    public static ExternalMcpToolCallResult OutcomeUnknown()
+    {
+        return Unavailable(
+            "External MCP tool outcome is unknown; the remote operation may have completed. Reconcile before retrying.",
+            "mcp_tool_outcome_unknown");
+    }
+
     public static ExternalMcpToolCallResult Unavailable(
         string message,
         string errorCode = "mcp_server_unavailable")

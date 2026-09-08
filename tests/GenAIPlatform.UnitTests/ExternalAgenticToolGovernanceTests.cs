@@ -354,6 +354,159 @@ public sealed class ExternalAgenticToolGovernanceTests
         Assert.Equal("Rejected", auditEntry.ExecutionStatus);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandleAsync_RealWrapperUnknownOutcomeStopsRemainingCallsAndAuditsMetadata(bool timeout)
+    {
+        const string secret = "private-remote-effect-and-argument";
+        var client = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("lookup", "Looks up an order.", Schema("query")),
+            new ExternalMcpToolDescriptor("secondary", "Another operation.", Schema("query")));
+        var remoteEffects = 0;
+        client.CallOverride = async token =>
+        {
+            remoteEffects++;
+            if (timeout)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            }
+
+            throw new InvalidOperationException(secret);
+        };
+        var factory = new SingleExternalMcpClientFactory(client);
+        var manager = CreateRealManager(factory, timeout ? 0.01 : 30);
+        await manager.RefreshAsync(CancellationToken.None);
+        try
+        {
+            var source = new ExternalMcpAgentToolSource(manager);
+            var hash = source.GetAvailableTools()[0].Definition.SchemaVersion;
+            var audit = new CapturingToolAuditLogRepository();
+            var model = new SequenceModelClient([ToolResponse(
+                (ExternalToolName, $$"""{"query":"{{secret}}"}"""),
+                ("mcp_orders_secondary", """{"query":"later"}"""))]);
+            var dispatcher = CreateDispatcher(model, audit, source);
+
+            var response = await dispatcher.DispatchAsync<AgenticChatCommand, AgenticChatResponse>(
+                new AgenticChatCommand("Use tools.", CorrelationId: "external-c2", ApproveRiskyTools: true),
+                CancellationToken.None);
+
+            Assert.Equal("ToolFailed", response.Status);
+            Assert.Contains("did not confirm successful completion", response.Answer, StringComparison.Ordinal);
+            Assert.Equal("mcp_tool_outcome_unknown", Assert.Single(response.ToolResults).ErrorCode);
+            Assert.Equal(1, model.CallCount);
+            Assert.Equal(1, client.CallCount);
+            Assert.Equal(1, remoteEffects);
+            Assert.Equal(1, factory.CreateCount);
+            Assert.Equal(1, client.DisposeCount);
+            Assert.Equal(2, audit.Entries.Count);
+            AssertUnknownAudit(audit.Entries[0], hash);
+            Assert.Equal(response.ConversationId, audit.Entries[0].ConversationId);
+            Assert.Equal("NotExecuted", audit.Entries[1].ExecutionStatus);
+            Assert.Equal("prior_tool_failed", audit.Entries[1].ErrorCode);
+            AssertMetadataOnly(audit.Entries[1], hasOutput: false);
+            Assert.DoesNotContain(secret, JsonSerializer.Serialize(audit.Entries), StringComparison.Ordinal);
+            Assert.DoesNotContain(secret, JsonSerializer.Serialize(response), StringComparison.Ordinal);
+        }
+        finally
+        {
+            await new ExternalMcpHostedService(manager).DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task HandleAsync_RealWrapperCallerCancellationAuditsUnknownBeforePropagation()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var auditEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseAudit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = new CancellationTokenSource();
+        var client = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("lookup", "Looks up an order.", Schema("query")),
+            new ExternalMcpToolDescriptor("secondary", "Another operation.", Schema("query")));
+        client.CallOverride = async token =>
+        {
+            entered.SetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("unreachable private response");
+        };
+        var factory = new SingleExternalMcpClientFactory(client);
+        var manager = CreateRealManager(factory);
+        await manager.RefreshAsync(CancellationToken.None);
+        try
+        {
+            var source = new ExternalMcpAgentToolSource(manager);
+            var hash = source.GetAvailableTools()[0].Definition.SchemaVersion;
+            var audit = new CapturingToolAuditLogRepository
+            {
+                AddOverride = async token =>
+                {
+                    Assert.True(caller.IsCancellationRequested);
+                    Assert.False(token.CanBeCanceled);
+                    auditEntered.SetResult();
+                    await releaseAudit.Task;
+                }
+            };
+            var model = new SequenceModelClient([ToolResponse(
+                (ExternalToolName, """{"query":"private-argument"}"""),
+                ("mcp_orders_secondary", """{"query":"later"}"""))]);
+            var dispatcher = CreateDispatcher(model, audit, source);
+            var dispatch = dispatcher.DispatchAsync<AgenticChatCommand, AgenticChatResponse>(
+                new AgenticChatCommand("Use tools.", CorrelationId: "external-c2", ApproveRiskyTools: true),
+                caller.Token);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+            await caller.CancelAsync();
+            await auditEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.False(dispatch.IsCompleted);
+            Assert.Empty(audit.Entries);
+            releaseAudit.SetResult();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dispatch);
+
+            AssertUnknownAudit(Assert.Single(audit.Entries), hash);
+            Assert.DoesNotContain("private-argument", JsonSerializer.Serialize(audit.Entries), StringComparison.Ordinal);
+            Assert.Equal(1, model.CallCount);
+            Assert.Equal(1, client.CallCount);
+            Assert.Equal(1, factory.CreateCount);
+            Assert.Equal(1, client.DisposeCount);
+            Assert.Empty(source.GetAvailableTools());
+        }
+        finally
+        {
+            releaseAudit.TrySetResult();
+            await new ExternalMcpHostedService(manager).DisposeAsync();
+        }
+    }
+
+    private static ExternalMcpConnectionManager CreateRealManager(IExternalMcpClientFactory factory, double timeout = 30)
+    {
+        return new ExternalMcpConnectionManager(
+            Options.Create(new ExternalMcpOptions
+            {
+                RefreshInterval = TimeSpan.Zero,
+                Servers = [new ExternalMcpServerOptions { Name = "Orders", Command = "fake", ToolCallTimeoutSeconds = timeout }]
+            }),
+            factory,
+            new AlwaysConnectMcpPolicy(),
+            NullLogger<ExternalMcpConnectionManager>.Instance);
+    }
+
+    private static void AssertUnknownAudit(ToolAuditLogEntry entry, string hash)
+    {
+        Assert.Equal("mcp_tool_outcome_unknown", entry.ErrorCode);
+        Assert.Equal("Failed", entry.ExecutionStatus);
+        Assert.Equal("alice", entry.UserId);
+        Assert.Equal("tenant-a", entry.TenantId);
+        Assert.Equal("external-c2", entry.CorrelationId);
+        Assert.Equal("call-1", entry.ToolCallId);
+        Assert.Equal(ExternalToolName, entry.ToolName);
+        Assert.Equal(hash, entry.SchemaVersion);
+        Assert.Equal("Valid", entry.ValidationStatus);
+        Assert.Equal("RequiresApproval", entry.PolicyDecision);
+        Assert.Equal("SimulatedApproved", entry.ApprovalState);
+        AssertMetadataOnly(entry, hasOutput: false);
+    }
+
     private static IApplicationDispatcher CreateDispatcher(
         IAiModelClient modelClient,
         IToolAuditLogRepository auditRepository,
@@ -629,6 +782,8 @@ public sealed class ExternalAgenticToolGovernanceTests
 
     private sealed class SequenceModelClient(Queue<AiModelResponse> responses) : IAiModelClient
     {
+        public int CallCount { get; private set; }
+
         public SequenceModelClient(IEnumerable<AiModelResponse> responses)
             : this(new Queue<AiModelResponse>(responses))
         {
@@ -638,6 +793,7 @@ public sealed class ExternalAgenticToolGovernanceTests
             AiModelRequest request,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             return Task.FromResult(responses.Count == 0
                 ? FinalResponse("Done.")
                 : responses.Dequeue());
@@ -673,10 +829,13 @@ public sealed class ExternalAgenticToolGovernanceTests
 
     private sealed class SingleExternalMcpClientFactory(IExternalMcpClient client) : IExternalMcpClientFactory
     {
+        public int CreateCount { get; private set; }
+
         public Task<IExternalMcpClient> CreateAsync(
             ExternalMcpServerOptions server,
             CancellationToken cancellationToken)
         {
+            CreateCount++;
             return Task.FromResult(client);
         }
     }
@@ -684,6 +843,10 @@ public sealed class ExternalAgenticToolGovernanceTests
     private sealed class FakeExternalMcpClient(IReadOnlyList<ExternalMcpToolDescriptor> tools) : IExternalMcpClient
     {
         public int CallCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public Func<CancellationToken, Task<ExternalMcpToolCallResult>>? CallOverride { get; set; }
 
         public static FakeExternalMcpClient WithTools(params ExternalMcpToolDescriptor[] tools)
         {
@@ -701,7 +864,7 @@ public sealed class ExternalAgenticToolGovernanceTests
             CancellationToken cancellationToken)
         {
             CallCount++;
-            return Task.FromResult(new ExternalMcpToolCallResult(
+            return CallOverride?.Invoke(cancellationToken) ?? Task.FromResult(new ExternalMcpToolCallResult(
                 IsError: false,
                 JsonSerializer.SerializeToElement(new { ok = true }),
                 ErrorMessage: null));
@@ -709,6 +872,7 @@ public sealed class ExternalAgenticToolGovernanceTests
 
         public ValueTask DisposeAsync()
         {
+            DisposeCount++;
             return ValueTask.CompletedTask;
         }
     }
@@ -716,10 +880,16 @@ public sealed class ExternalAgenticToolGovernanceTests
     {
         public List<ToolAuditLogEntry> Entries { get; } = [];
 
-        public Task AddAsync(ToolAuditLogEntry entry, CancellationToken cancellationToken)
+        public Func<CancellationToken, Task>? AddOverride { get; init; }
+
+        public async Task AddAsync(ToolAuditLogEntry entry, CancellationToken cancellationToken)
         {
+            if (AddOverride is not null)
+            {
+                await AddOverride(cancellationToken);
+            }
+
             Entries.Add(entry);
-            return Task.CompletedTask;
         }
     }
 
