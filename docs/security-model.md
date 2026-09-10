@@ -59,6 +59,8 @@ Search all documents
 -> ask the LLM not to reveal them
 ```
 
+Retrieved document text is untrusted data. The prompt builder therefore owns the formatting that separates instructions from evidence: every included chunk is wrapped in a backend-generated `<source id title file>` frame, attribute values are escaped so metadata cannot close the tag, and any `<source` or `</source>` marker inside the document text is rewritten so the text cannot forge or close a frame. This only labels document text as data; it is not a security boundary and does not make the model immune to prompt injection, because the model can still follow instructions it reads inside a frame. Access filtering before prompt construction, not framing, is what keeps content the caller may not read out of the prompt. See `docs/rag-pipeline.md` for the exact format.
+
 ## Logging
 
 - Full rendered prompt logging is disabled by default.

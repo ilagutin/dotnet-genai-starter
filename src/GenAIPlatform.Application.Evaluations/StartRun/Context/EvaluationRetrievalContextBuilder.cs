@@ -1,4 +1,3 @@
-using System.Text;
 using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Generation.Chat;
 using GenAIPlatform.Application.Generation.ModelGateway;
@@ -14,8 +13,11 @@ internal sealed class EvaluationRetrievalContextBuilder(
     IEmbeddingClient embeddingClient,
     IRagVectorSearchStore vectorSearchStore,
     TimeProvider timeProvider,
-    IOptions<RagOptions> ragOptions)
+    IOptions<RagOptions> ragOptions,
+    RagPromptBuilder promptBuilder)
 {
+    private int MaxContextCharacters => Math.Max(1, ragOptions.Value.MaxContextCharacters);
+
     public async Task<EvaluationRetrievalContext> BuildAsync(
         EvaluationCase evaluationCase,
         ModelGatewayRequestSettings gateway,
@@ -57,7 +59,7 @@ internal sealed class EvaluationRetrievalContextBuilder(
                 DocumentIds: []),
             cancellationToken);
 
-        var promptContext = BuildPromptContext(evaluationCase, chunks);
+        var promptContext = BuildPromptContext(chunks);
 
         return new EvaluationRetrievalContext(
             message,
@@ -68,81 +70,25 @@ internal sealed class EvaluationRetrievalContextBuilder(
             promptContext.RetrievedDocuments);
     }
 
-    private EvaluationPromptContext BuildPromptContext(
-        EvaluationCase evaluationCase,
-        IReadOnlyList<RetrievedDocumentChunk> chunks)
+    private EvaluationPromptContext BuildPromptContext(IReadOnlyList<RetrievedDocumentChunk> chunks)
     {
-        var context = evaluationCase.Context;
-        if (!string.IsNullOrWhiteSpace(context))
-        {
-            return new EvaluationPromptContext(
-                TrimContext(context),
-                RetrievedDocuments: []);
-        }
-
-        return BuildContext(chunks);
-    }
-
-    private EvaluationPromptContext BuildContext(IReadOnlyList<RetrievedDocumentChunk> chunks)
-    {
-        if (chunks.Count == 0)
-        {
-            return new EvaluationPromptContext(
-                ContextText: string.Empty,
-                RetrievedDocuments: []);
-        }
-
-        var maxCharacters = Math.Max(1, ragOptions.Value.MaxContextCharacters);
-        var builder = new StringBuilder(maxCharacters);
-        var includedDocuments = new List<RetrievedDocumentReference>();
-
-        for (var index = 0; index < chunks.Count; index++)
-        {
-            var chunk = chunks[index];
-            var chunkText = $"[{index + 1}] {chunk.Title}\n{chunk.Text}";
-            var separator = builder.Length == 0 ? string.Empty : "\n\n";
-            var remainingCharacters = maxCharacters - builder.Length - separator.Length;
-            if (remainingCharacters <= 0)
-            {
-                break;
-            }
-
-            if (separator.Length > 0)
-            {
-                builder.Append(separator);
-            }
-
-            var charactersToAppend = Math.Min(chunkText.Length, remainingCharacters);
-            builder.Append(chunkText, 0, charactersToAppend);
-            includedDocuments.Add(ToRetrievedDocumentReference(chunk, index));
-
-            if (charactersToAppend < chunkText.Length)
-            {
-                break;
-            }
-        }
+        var ragContext = promptBuilder.Build(chunks, MaxContextCharacters);
 
         return new EvaluationPromptContext(
-            builder.ToString().TrimEnd(),
-            includedDocuments);
+            ragContext.ContextText,
+            ragContext.Citations
+                .Select(static citation => new RetrievedDocumentReference(
+                    citation.ReferenceId,
+                    citation.DocumentId,
+                    citation.ChunkId))
+                .ToArray());
     }
 
     private string TrimContext(string context)
     {
-        var maxCharacters = Math.Max(1, ragOptions.Value.MaxContextCharacters);
         var trimmed = context.Trim();
-        return trimmed.Length <= maxCharacters
+        return trimmed.Length <= MaxContextCharacters
             ? trimmed
-            : trimmed[..maxCharacters].TrimEnd();
-    }
-
-    private static RetrievedDocumentReference ToRetrievedDocumentReference(
-        RetrievedDocumentChunk chunk,
-        int index)
-    {
-        return new RetrievedDocumentReference(
-            (index + 1).ToString(),
-            chunk.DocumentId,
-            chunk.ChunkId);
+            : trimmed[..MaxContextCharacters].TrimEnd();
     }
 }

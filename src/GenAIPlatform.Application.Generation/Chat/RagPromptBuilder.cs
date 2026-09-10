@@ -6,8 +6,6 @@ namespace GenAIPlatform.Application.Generation.Chat;
 
 public sealed class RagPromptBuilder
 {
-    private const int MaxPromptMetadataCharacters = 120;
-
     public RagPromptContext Build(
         IReadOnlyList<RetrievedDocumentChunk> chunks,
         int maxContextCharacters)
@@ -21,11 +19,12 @@ public sealed class RagPromptBuilder
         foreach (var chunk in chunks)
         {
             var referenceId = (citations.Count + 1).ToString(CultureInfo.InvariantCulture);
-            var text = chunk.Text.Trim();
+            var text = RetrievedSourceFrame.NeutralizeFramingMarkers(chunk.Text.Trim());
             var separator = context.Length > 0 ? Environment.NewLine + Environment.NewLine : string.Empty;
-            var entryPrefix = BuildEntryPrefix(referenceId, chunk);
-            var remainingTextCharacters =
-                maxContextCharacters - context.Length - separator.Length - entryPrefix.Length;
+            var openTag = RetrievedSourceFrame.BuildOpenTag(referenceId, chunk.Title, chunk.FileName);
+            var remainingTextCharacters = maxContextCharacters
+                - context.Length
+                - RetrievedSourceFrame.Overhead(openTag, separator);
 
             if (remainingTextCharacters <= 0)
             {
@@ -34,7 +33,7 @@ public sealed class RagPromptBuilder
 
             if (text.Length > remainingTextCharacters)
             {
-                text = text[..remainingTextCharacters].TrimEnd();
+                text = TruncateWithoutSplittingSurrogatePair(text, remainingTextCharacters);
             }
 
             if (text.Length == 0)
@@ -42,12 +41,13 @@ public sealed class RagPromptBuilder
                 continue;
             }
 
-            if (context.Length > 0)
-            {
-                context.Append(separator);
-            }
-
-            context.Append(entryPrefix).Append(text);
+            context
+                .Append(separator)
+                .Append(openTag)
+                .Append(Environment.NewLine)
+                .Append(text)
+                .Append(Environment.NewLine)
+                .Append(RetrievedSourceFrame.CloseTag);
 
             citations.Add(new RagCitation(
                 referenceId,
@@ -63,39 +63,20 @@ public sealed class RagPromptBuilder
         return new RagPromptContext(context.ToString(), citations);
     }
 
-    private static string BuildEntryPrefix(
-        string referenceId,
-        RetrievedDocumentChunk chunk)
+    /// <summary>
+    /// Cuts text to at most <paramref name="maxCharacters" /> UTF-16 code units and then trims
+    /// trailing whitespace. When the cut would land between the two halves of a surrogate pair it
+    /// backs off by one code unit, so a lone high surrogate is never framed into the prompt. The
+    /// result is never longer than the requested bound, so the budget arithmetic still holds.
+    /// </summary>
+    private static string TruncateWithoutSplittingSurrogatePair(string text, int maxCharacters)
     {
-        var builder = new StringBuilder();
-        builder
-            .Append('[')
-            .Append(referenceId)
-            .AppendLine("]")
-            .Append("Title: ")
-            .AppendLine(NormalizePromptMetadata(chunk.Title))
-            .Append("File: ")
-            .AppendLine(NormalizePromptMetadata(chunk.FileName))
-            .AppendLine("Text:");
-
-        return builder.ToString();
-    }
-
-    private static string NormalizePromptMetadata(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
+        var cut = maxCharacters;
+        if (char.IsHighSurrogate(text[cut - 1]))
         {
-            return string.Empty;
+            cut--;
         }
 
-        var normalized = string.Join(
-            ' ',
-            value.Split(
-                (char[]?)null,
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
-        return normalized.Length <= MaxPromptMetadataCharacters
-            ? normalized
-            : normalized[..MaxPromptMetadataCharacters].TrimEnd();
+        return text[..cut].TrimEnd();
     }
 }

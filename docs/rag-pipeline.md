@@ -91,6 +91,25 @@ RAG questions are rejected before retrieval if they exceed the lower of the mode
 
 Default RAG retrieval uses the current document version and excludes older chunk versions. The default `minSimilarityScore` is `0.2`. Callers may override it between `-1` and `1`, but lower thresholds intentionally broaden retrieval. The prompt builder also enforces the lower of `GenAIPlatform:Rag:MaxContextCharacters` and the remaining rendered model input budget, including system instructions and user-message template overhead, so top-K retrieval cannot send unbounded context to the model; citations are returned only for chunks that were included in the rendered prompt context.
 
+### Context framing
+
+Each included chunk is rendered inside a backend-owned frame:
+
+```text
+<source id="1" title="Architecture Notes" file="architecture-notes.md">
+chunk text
+</source>
+```
+
+Frames are separated by one blank line and no preamble text is added. The format is code-level behavior of the prompt builder, not part of the prompt template.
+
+- `title` and `file` keep the existing metadata normalization (whitespace collapsed, bounded to 120 characters) and are then XML-attribute escaped in the order `&`, `"`, `<`, `>`. Attribute values never contain a newline, so a frame tag is always a single line and document metadata cannot close it.
+- Chunk text is trimmed and every case-insensitive `<source` or `</source` occurrence inside it is rewritten to `<\source` or `<\/source`, so document text cannot forge or close a frame. Nothing else is removed or rewritten: instruction-like text stays verbatim inside its frame. The rewrite is deterministic and uses no random nonce.
+- The character budget covers the framing overhead, not only chunk text: the separator, opening tag, both newlines and the closing tag are charged against `GenAIPlatform:Rag:MaxContextCharacters` and the remaining rendered model input budget. A chunk is skipped with neither a frame nor a citation when its text is empty or whitespace-only, or when the remaining budget cannot fit at least one character of its text; the next chunk is still considered. Truncation happens after the marker rewrite and never splits a UTF-16 surrogate pair: when the cut would land between the two halves of a pair it backs off by one code unit, so no lone surrogate is framed.
+- `id` values are sequential over included chunks only and equal the `referenceId` of the matching citation, so every frame in the prompt has exactly one citation and every citation has exactly one frame. Skipped chunks produce neither.
+
+Framing labels retrieved document text as data for the model. It is not a security boundary and it does not make the model immune to prompt injection: a model can still follow instructions it reads inside a frame. The control that keeps private content out of a prompt is access filtering on tenant, owner, access level and metadata before prompt construction, described in `docs/security-model.md`.
+
 ## Response
 
 RAG responses should include:

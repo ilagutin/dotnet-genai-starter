@@ -570,11 +570,14 @@ public sealed partial class DocumentEndpointTests(WebApplicationFactory<Program>
     {
         public int Calls { get; private set; }
 
+        public AiModelRequest? Request { get; private set; }
+
         public Task<AiModelResponse> CompleteAsync(
             AiModelRequest request,
             CancellationToken cancellationToken)
         {
             Calls++;
+            Request = request;
             return Task.FromResult(new AiModelResponse(
                 "unused",
                 request.Model,

@@ -25,6 +25,7 @@ Example templates:
 
 - Prompt versions are immutable after activation.
 - A prompt edit creates a new version.
+- How a template variable's value is built in code is not a prompt edit: the retrieved-context framing described in `docs/rag-pipeline.md` changes the string bound to the `context` variable, so `rag-chat:v1` is unchanged and no new template version is created.
 - At most one version should be active per template and environment.
 - Changing the active version creates an audit event.
 - Prompt variables should have a clear schema/contract.

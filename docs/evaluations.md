@@ -55,6 +55,8 @@ Dataset loading rejects blank case IDs, names and questions, empty or whitespace
 
 Sample cases include safe fixture `context` so local mock-provider runs are deterministic before or after a developer has indexed documents. When fixture context is present, it is the answer context for that case and retrieval is bypassed: no readiness check, embedding request or vector search is performed, and the request log contains no retrieved document references or embedding metadata. Dataset validation rejects `retrieval` checks on fixture-context cases because there are no retrieved chunks to count.
 
+Retrieval-backed cases build their prompt context with the same `RagPromptBuilder` the RAG chat path uses, so an evaluation prompt carries the same `<source id title file>` frames, the same attribute escaping, the same `<source` and `</source>` marker neutralization inside document text and the same budget accounting including framing overhead, bounded by `GenAIPlatform:Rag:MaxContextCharacters`. Each request-log document reference takes its `referenceId` from the matching citation, so reference ids equal the `id` values in the framed prompt. Fixture context is unchanged: it bypasses retrieval and is used raw apart from trimming to the same character bound.
+
 ## Run Metadata
 
 Persisted runs store:
