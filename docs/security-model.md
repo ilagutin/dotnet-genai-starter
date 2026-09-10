@@ -29,7 +29,10 @@ authenticated date ranges receive 400. The HTTP errors are ProblemDetails respon
 
 MCP `get_usage` uses the same Application policy under the configured local service identity and
 maps denials to MCP errors. It does not authenticate each remote caller. These checks rely on the
-host's `IUserContext`; they do not make caller-controlled demo headers trustworthy.
+host's `IUserContext`; they do not make caller-controlled demo headers trustworthy. Because every
+client of the stdio host shares that one configured identity, an `admin` role in that configuration
+grants cross-tenant usage reads to every connected client; the host logs a startup warning when
+`admin` is configured so this is visible rather than silent.
 
 ## Retrieval Access
 

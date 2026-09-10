@@ -26,6 +26,8 @@ public static class McpUserContextSetup
         services.AddScoped<IBackgroundUserContext>(serviceProvider =>
             serviceProvider.GetRequiredService<McpUserContext>());
 
+        services.AddHostedService<McpIdentityStartupDiagnostics>();
+
         return services;
     }
 }
