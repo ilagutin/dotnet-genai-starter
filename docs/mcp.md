@@ -23,7 +23,7 @@ The local stdio host runs as a configured service identity:
 }
 ```
 
-Application handlers see this identity through `IUserContext` and `IBackgroundUserContext`. Listing tools is not the security boundary; handlers still enforce authorization, retrieval filters and tool policy. Per-caller remote MCP authentication is future scope and is not part of the local v0.2.0 host.
+Application handlers see this identity through `IUserContext` and `IBackgroundUserContext`. Listing tools is not the security boundary; handlers still enforce authorization, retrieval filters and tool policy. Per-caller remote MCP authentication is future scope and is not part of the local host.
 
 The host trusts its configuration file as the caller identity and does not authenticate individual clients: every client that starts the host with this configuration gets the same identity. A configured `admin` role grants cross-tenant usage reads (see `get_usage` below) to every client of that host, so on startup the host logs a warning when `admin` is configured, naming the local-only intent of that configuration. Remote or multi-user deployments require per-caller remote MCP authentication, which is future scope.
 

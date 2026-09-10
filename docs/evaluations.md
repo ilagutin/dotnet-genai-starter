@@ -133,7 +133,7 @@ Options:
 
 Exit codes: `0` when every gate is met, `1` when a gate is not met, `2` on a usage error. `1` is also returned when the corpus store is missing, unconfigured or unavailable; the sanitized reason is written to stderr and names no host, database, user or credential. The `run` verb is unchanged and still runs the answer-quality dataset.
 
-The committed reference report is `docs/evaluations/retrieval-baseline-v1.json`. It was produced by the command above at revision `1937d92c68815f08c134704b410d73a2760ac3ae`. Regenerating it elsewhere reproduces `datasetHash`, `configuration.settingsHash`, every field under `aggregates` and every per-query field except `elapsedMilliseconds` exactly, on Windows and on Linux alike: the dataset digest is taken over line-ending-normalized bytes, so it does not depend on how the repository was checked out. `generatedAtUtc`, the `environment` versions and every timing field are expected to differ from run to run and from machine to machine.
+The committed reference report is `docs/evaluations/retrieval-baseline-v1.json`. It was produced by the command above at revision `d48bd228d767054045f12af754268581d9330e5b`. Regenerating it elsewhere reproduces `datasetHash`, `configuration.settingsHash`, every field under `aggregates` and every per-query field except `elapsedMilliseconds` exactly, on Windows and on Linux alike: the dataset digest is taken over line-ending-normalized bytes, so it does not depend on how the repository was checked out. `generatedAtUtc`, the `environment` versions and every timing field are expected to differ from run to run and from machine to machine.
 
 ### Benchmark Tenant Isolation
 

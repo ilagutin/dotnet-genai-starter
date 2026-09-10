@@ -1,8 +1,8 @@
 {
   "datasetVersion": "retrieval-baseline-v1",
   "datasetHash": "2c567f8bccf50bb23a09f4bc90c11e24bb98d3e1cab4fdb162416ffbf36f863b",
-  "codeRevision": "1937d92c68815f08c134704b410d73a2760ac3ae",
-  "generatedAtUtc": "2026-09-10T16:45:49.7634732+00:00",
+  "codeRevision": "d48bd228d767054045f12af754268581d9330e5b",
+  "generatedAtUtc": "2026-09-10T23:03:19.1636654+00:00",
   "configuration": {
     "embeddingProvider": "mock-lexical",
     "embeddingModel": "mock-embedding",
@@ -76,7 +76,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 14.1793
+      "elapsedMilliseconds": 12.1358
     },
     {
       "queryId": "q-relevant-002",
@@ -91,7 +91,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.4832
+      "elapsedMilliseconds": 1.1694
     },
     {
       "queryId": "q-relevant-003",
@@ -106,7 +106,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.0026
+      "elapsedMilliseconds": 0.8515
     },
     {
       "queryId": "q-relevant-004",
@@ -121,7 +121,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.0415
+      "elapsedMilliseconds": 0.7495
     },
     {
       "queryId": "q-relevant-005",
@@ -136,7 +136,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.1437
+      "elapsedMilliseconds": 0.6877
     },
     {
       "queryId": "q-relevant-006",
@@ -151,7 +151,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.2023
+      "elapsedMilliseconds": 0.7601
     },
     {
       "queryId": "q-relevant-007",
@@ -166,7 +166,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.2578
+      "elapsedMilliseconds": 0.6816
     },
     {
       "queryId": "q-relevant-008",
@@ -181,7 +181,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.9302
+      "elapsedMilliseconds": 0.6633
     },
     {
       "queryId": "q-distractor-001",
@@ -197,7 +197,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.9576
+      "elapsedMilliseconds": 0.6549
     },
     {
       "queryId": "q-distractor-002",
@@ -212,7 +212,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 14.5119
+      "elapsedMilliseconds": 7.7957
     },
     {
       "queryId": "q-distractor-003",
@@ -228,7 +228,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.109
+      "elapsedMilliseconds": 0.828
     },
     {
       "queryId": "q-distractor-004",
@@ -243,7 +243,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.9679
+      "elapsedMilliseconds": 0.7704
     },
     {
       "queryId": "q-paraphrase-001",
@@ -258,7 +258,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.1073
+      "elapsedMilliseconds": 0.7489
     },
     {
       "queryId": "q-paraphrase-002",
@@ -273,7 +273,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.8645
+      "elapsedMilliseconds": 0.656
     },
     {
       "queryId": "q-paraphrase-003",
@@ -288,7 +288,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.8469
+      "elapsedMilliseconds": 0.7063
     },
     {
       "queryId": "q-paraphrase-004",
@@ -303,7 +303,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.9302
+      "elapsedMilliseconds": 0.7032
     },
     {
       "queryId": "q-paraphrase-005",
@@ -318,7 +318,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.8189
+      "elapsedMilliseconds": 0.722
     },
     {
       "queryId": "q-no-match-001",
@@ -329,7 +329,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.863
+      "elapsedMilliseconds": 0.7045
     },
     {
       "queryId": "q-no-match-002",
@@ -340,7 +340,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.9599
+      "elapsedMilliseconds": 0.6898
     },
     {
       "queryId": "q-no-match-003",
@@ -351,7 +351,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8476
+      "elapsedMilliseconds": 0.6313
     },
     {
       "queryId": "q-no-match-004",
@@ -362,7 +362,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8408
+      "elapsedMilliseconds": 0.6198
     },
     {
       "queryId": "q-no-match-005",
@@ -373,7 +373,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 1.032
+      "elapsedMilliseconds": 0.632
     },
     {
       "queryId": "q-tenant-isolation-001",
@@ -384,7 +384,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8553
+      "elapsedMilliseconds": 0.7257
     },
     {
       "queryId": "q-tenant-isolation-002",
@@ -395,7 +395,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.9239
+      "elapsedMilliseconds": 0.6531
     },
     {
       "queryId": "q-tenant-isolation-003",
@@ -410,7 +410,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.0192
+      "elapsedMilliseconds": 0.6731
     },
     {
       "queryId": "q-private-ownership-001",
@@ -421,7 +421,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8902
+      "elapsedMilliseconds": 0.6616
     },
     {
       "queryId": "q-private-ownership-002",
@@ -432,7 +432,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8524
+      "elapsedMilliseconds": 0.6201
     },
     {
       "queryId": "q-private-ownership-003",
@@ -447,7 +447,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 1.0349
+      "elapsedMilliseconds": 0.6745
     },
     {
       "queryId": "q-document-version-001",
@@ -462,7 +462,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.8788
+      "elapsedMilliseconds": 0.6746
     },
     {
       "queryId": "q-document-version-002",
@@ -477,7 +477,7 @@
       "recallAtK": 1,
       "firstRelevantRank": 1,
       "hit": true,
-      "elapsedMilliseconds": 0.96
+      "elapsedMilliseconds": 0.9091
     },
     {
       "queryId": "q-document-version-003",
@@ -488,7 +488,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8937
+      "elapsedMilliseconds": 0.7577
     },
     {
       "queryId": "q-embedding-compatibility-001",
@@ -499,7 +499,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.8257
+      "elapsedMilliseconds": 0.6495
     },
     {
       "queryId": "q-embedding-compatibility-002",
@@ -510,7 +510,7 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 0.9276
+      "elapsedMilliseconds": 0.7045
     },
     {
       "queryId": "q-embedding-compatibility-003",
@@ -521,13 +521,13 @@
       "recallAtK": null,
       "firstRelevantRank": null,
       "hit": true,
-      "elapsedMilliseconds": 1.1421
+      "elapsedMilliseconds": 0.6705
     }
   ],
   "timings": {
-    "totalMilliseconds": 1236.071,
-    "corpusReplaceMilliseconds": 1115.7986,
-    "queryMeanMilliseconds": 1.7677029411764706,
-    "queryMaxMilliseconds": 14.5119
+    "totalMilliseconds": 291.4683,
+    "corpusReplaceMilliseconds": 203.2604,
+    "queryMeanMilliseconds": 1.2628147058823531,
+    "queryMaxMilliseconds": 12.1358
   }
 }

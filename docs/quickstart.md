@@ -66,6 +66,11 @@ or configuration error). The migrations themselves are embedded in the
 Infrastructure assembly, so a published host carries its own SQL and does not
 need the checkout directory.
 
+Before adoption, `status` on an adoptable v0.3.1 database lists every migration
+version as pending, because the journal has no rows yet to compare against;
+running `migrate` against that same database adopts `0001`-`0006` in one step
+and then applies only `0007` on top of them.
+
 No host migrates on startup. While the `genai.schema_migrations` journal is
 missing or behind, RAG retrieval and indexing job processing fail their schema
 readiness checks with a message naming the migration command. That covers the
@@ -80,9 +85,11 @@ next section has the check to run first and the repair.
 
 ### Upgrading An Existing Database
 
-- Supported source version: `v0.3.1`, meaning a database built by the released
-  `infra/postgres/init/001..007` scripts. The runner adopts it only after an exact
-  schema fingerprint match and then records the frozen checksums in the journal.
+- Supported source version: `v0.3.1`, meaning a database initialized by the
+  scripts released in v0.3.1 (frozen copies under
+  `tests/GenAIPlatform.IntegrationTests/Fixtures/legacy-v0.3.1/`). The runner
+  adopts it only after an exact schema fingerprint match and then records the
+  frozen checksums in the journal.
 - A partial or otherwise unrecognized schema fails with an actionable message and
   changes nothing. The runner never drops or alters objects to make a schema match.
 - Back up the database before migrating. Downgrade is restore from backup: there

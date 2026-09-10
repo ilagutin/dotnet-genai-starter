@@ -17,7 +17,7 @@ Keep a modular monolith. `Domain` depends on no Application module, Infrastructu
 | Evaluations | Domain, Core, Knowledge, Generation |
 | Usage | Domain, Core |
 
-Application owns use cases, ports, orchestration, validation and pipeline behavior. Infrastructure implements persistence, pgvector retrieval, storage and model/embedding adapters; it owns sanitized logging and pricing/cost persistence. Api owns HTTP mapping, OpenAPI and foreground user context only. Worker dispatches its needed modules; Evaluations is a CLI host over them. Hosts compose explicit per-module registrations, never root `AddApplication`. Provider DTOs, HTTP, SQL and SDK concepts do not leak into Application or Domain.
+Application owns use cases, ports, orchestration, validation and pipeline behavior. Infrastructure implements persistence, pgvector retrieval, storage and model/embedding adapters; it owns sanitized logging and pricing/cost persistence. Api owns HTTP mapping, OpenAPI and foreground user context only. Worker dispatches its needed modules; Evaluations is a CLI host over them; the Migrations host applies schema changes explicitly and composes Infrastructure only. Hosts compose explicit per-module registrations, never root `AddApplication`. Provider DTOs, HTTP, SQL and SDK concepts do not leak into Application or Domain.
 
 ## Current decisions
 
