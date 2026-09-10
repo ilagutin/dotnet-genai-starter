@@ -1,8 +1,8 @@
-using GenAIPlatform.Application.Agentic.Validation;
-using GenAIPlatform.Domain.Agentic;
 using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Tools;
 
@@ -12,7 +12,7 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
         "GetCurrentUserProfile",
         "Returns the current demo user's id, tenant, roles and groups.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {},
@@ -25,9 +25,7 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        return arguments.ValueKind is JsonValueKind.Object or JsonValueKind.Undefined
-            ? ToolValidationResult.Valid(Json("{}"))
-            : ToolValidationResult.Invalid("invalid_arguments", "GetCurrentUserProfile expects an object argument.");
+        return ToolValidationResult.Valid(ToolValidationResult.ParseJson("{}"));
     }
 
     public Task<ToolExecutionResult> ExecuteAsync(
@@ -43,11 +41,5 @@ internal sealed class GetCurrentUserProfileTool(IUserContext userContext) : IAge
         });
 
         return Task.FromResult(new ToolExecutionResult(ToolExecutionStatus.Succeeded, output));
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

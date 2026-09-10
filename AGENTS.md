@@ -1,147 +1,70 @@
-# AGENTS.md
+# Agent Contract
 
-Treat this file as the operating contract for future coding agents and human maintainers.
+`dotnet-genai-starter` is a .NET-native GenAI Platform Starter Kit: a reference implementation, not a production system or stable framework. It demonstrates RAG, model gateway, prompts, permission-aware retrieval, logging, cost tracking, evaluations and backend-controlled tools.
 
-## Project Intent
+Use `README.md` and relevant `docs/` files, especially architecture, code organization, security, RAG, model gateway, safe tools, trade-offs and versioning.
 
-`dotnet-genai-starter` is a .NET-native GenAI Platform Starter Kit. It demonstrates the backend platform layer around GenAI applications: RAG, model gateway abstraction, prompt versioning, permission-aware retrieval, sanitized AI request logging, cost tracking, evaluations and backend-controlled tool execution.
+## Architecture
 
-This is a reference implementation, not a production system and not a stable framework. Keep changes practical, reviewable and aligned with the public documentation.
+Keep a modular monolith. `Domain` depends on no Application module, Infrastructure, host, provider SDK or persistence library. Application references are exactly:
 
-## First Read
+| Module | May reference |
+|---|---|
+| Core | Domain |
+| Knowledge | Domain, Core |
+| Generation | Domain, Core, Knowledge |
+| Agentic | Domain, Core, Generation |
+| Evaluations | Domain, Core, Knowledge, Generation |
+| Usage | Domain, Core |
 
-Before making non-trivial changes, read the relevant public docs:
+Application owns use cases, ports, orchestration, validation and pipeline behavior. Infrastructure implements persistence, pgvector retrieval, storage and model/embedding adapters; it owns sanitized logging and pricing/cost persistence. Api owns HTTP mapping, OpenAPI and foreground user context only. Worker dispatches its needed modules; Evaluations is a CLI host over them. Hosts compose explicit per-module registrations, never root `AddApplication`. Provider DTOs, HTTP, SQL and SDK concepts do not leak into Application or Domain.
 
-- `README.md` for scope, quickstart and release framing.
-- `docs/architecture.md` for project boundaries.
-- `docs/code-organization.md` for maintainability rules.
-- `docs/security-model.md` for auth, retrieval and logging safety.
-- `docs/rag-pipeline.md` for ingestion, retrieval and citation behavior.
-- `docs/model-gateway.md` for provider abstraction rules.
-- `docs/safe-tools.md` for agentic tool policy.
-- `docs/trade-offs.md` for documented compromises.
+## Current decisions
 
-## Architecture Contract
+- .NET 10 LTS; API routes use `/api/v1/...`.
+- Clean Architecture with simple Domain records, module-owned workflows and CQRS-lite feature/action folders, not separate read/write systems.
+- Internal dispatcher, not required MediatR; FluentValidation runs in it and normalizers create values.
+- Raw Npgsql provides PostgreSQL/pgvector; PostgreSQL-backed indexing jobs run in Worker.
+- API/CLI use `IUserContext`; Worker/system use `IBackgroundUserContext`; header auth is demo-only.
+- Mock providers are default; OpenAI-compatible adapters are replaceable Infrastructure adapters. API and CLI evaluations share services.
+- The model proposes tool calls; backend policy decides execution.
 
-- Keep the solution a modular monolith.
-- `Domain` must not depend on Application modules, `Infrastructure`, `Api`, `Worker`, provider SDKs or persistence libraries.
-- Application is split into project-level modules:
-  `GenAIPlatform.Application.Core`, `.Knowledge`, `.Generation`, `.Agentic`, `.Evaluations` and `.Usage`.
-- `Core` may reference only `Domain`.
-- `Knowledge` may reference only `Domain` and `Core`.
-- `Generation` may reference only `Domain`, `Core` and `Knowledge`.
-- `Agentic` may reference only `Domain`, `Core` and `Generation`.
-- `Evaluations` may reference only `Domain`, `Core`, `Knowledge` and `Generation`.
-- `Usage` may reference only `Domain` and `Core`.
-- Application modules own use cases, ports, orchestration, validation policies and pipeline behavior.
-- `Infrastructure` implements persistence, pgvector retrieval, file storage, model clients, embedding clients and other adapters.
-- The observability mechanism lives in `Infrastructure`, including sanitized AI request logging, pricing/cost estimation and log/pricing persistence details.
-- `Api` maps HTTP input/output, OpenAPI metadata and foreground user context only.
-- `Worker` runs background jobs by dispatching Application use cases and should compose only the Application modules it needs.
-- `Evaluations` is a CLI host over the same Application modules used by the API.
-- Hosts must compose explicit per-module registration methods instead of a root `AddApplication` method.
-- Provider-specific DTOs, HTTP details, SQL details and SDK concepts must not leak into Application or Domain contracts.
+## GenAI safety
 
-## Current Design Decisions
+- The LLM is not a security boundary. Filter tenant, owner, access level and metadata before prompt text.
+- Never protect private data with prompts. Rendered-prompt logging is off by default; never log document text, prompts, credentials, connection strings, API keys or vectors.
+- Tests do not call real model or embedding providers by default.
+- Tool execution is deterministic backend behavior: validation, policy and approval state decide it. Unknown, forbidden or invalid calls fail closed and are audit-visible.
 
-- Runtime: .NET 10 LTS.
-- API surface: `/api/v1/...`.
-- Architecture: Clean Architecture with simple domain records and module-owned application workflow behavior.
-- CQRS: CQRS-lite by feature/action folder, not separate read/write systems.
-- Pipeline: lightweight internal dispatcher instead of a required MediatR dependency.
-- Validation: FluentValidation runs in the dispatcher pipeline; feature normalizers build handler-ready value objects when needed.
-- Persistence: raw Npgsql for explicit PostgreSQL and pgvector behavior.
-- Ingestion: PostgreSQL-backed indexing jobs processed by `GenAIPlatform.Worker`.
-- Auth: foreground `IUserContext` for API/CLI callers, `IBackgroundUserContext`
-  for Worker/system jobs, and demo header auth only for local/sample use.
-- Providers: deterministic mock providers by default; OpenAI-compatible adapters are replaceable infrastructure adapters.
-- Evaluations: API and CLI entry points share Application module services.
-- Agentic chat: model proposes tool calls; backend policy decides whether they run.
+## Reliability
 
-## GenAI Safety Rules
+- Application ports are contracts. Normalize infrastructure exceptions at port boundaries into Application contracts; follow the Infrastructure Error Boundary.
+- Reason about partial failure in storage, persistence, worker, lease, retry, provider, authorization and cleanup workflows. Do not report success after a required durable side effect fails without a documented, tested recovery invariant.
+- Provider calls are cancelable or observed on shutdown, cancellation, stale lease or ownership loss; retry accounting reflects possible prior effects.
+- Prefer fault-injection tests for commit/cleanup failure, provider timeout/retry/malformed responses, stale leases and duplicate workers. Run PostgreSQL/Testcontainers coverage for persistence, schema, retrieval, leases and migrations; report risk if Docker tests are skipped.
 
-- The LLM is not a security boundary.
-- Apply tenant, owner, access-level and metadata filters before adding document text to prompts.
-- Never rely on a prompt instruction to protect private data.
-- Full rendered prompt logging must stay disabled by default.
-- Do not log document text, rendered prompts, provider credentials, full connection strings, API keys or embedding vectors.
-- Automated tests must not call real model or embedding providers by default.
-- Tool execution must be deterministic backend behavior. The model may propose actions; backend validation, policy and approval state decide execution.
-- Unknown, forbidden or invalid tool calls must fail closed and be audit-visible.
+## Code organization
 
-## Reliability Rules
+- Production files: 400 lines; test files: 800.
+- One class, record, struct, enum or interface per file.
+- Use feature/action folders: `Command.cs` or `Query.cs`, `Handler.cs`, `Validator.cs`, `Normalizer.cs` when needed and `Response.cs`.
+- Handlers orchestrate; parsing, rendering, policy, persistence and provider detail use named collaborators. Endpoints bind, dispatch and map only. Business validation belongs in validators/named policies; centralize public error/HTTP mapping and prefer typed options/constants and explicit names.
 
-- Treat Application ports as contracts. Do not rely on one adapter's incidental behavior to make a workflow safe.
-- Normalize infrastructure-specific exceptions at the Application port boundary; follow `docs/code-organization.md` Infrastructure Error Boundary.
-- For workflows crossing storage, persistence, workers, leases, retries, external providers, auth or cleanup, reason about partial failure states before changing behavior.
-- Do not return public success after a required durable side effect failed unless a documented recovery invariant and tests prove the state is safe.
-- Worker provider calls must be cancelable or explicitly observed when shutdown, cancellation, stale lease or ownership loss occurs.
-- Retry and attempt accounting must reflect whether storage/provider side effects may already have happened.
-- Prefer targeted fault-injection tests for commit failure, cleanup failure, provider timeout/retry/malformed response, stale lease and duplicate-worker races.
-- PostgreSQL/Testcontainers coverage should run for persistence, schema, retrieval, worker lease and migration changes. If Docker-backed tests are skipped locally, call out the residual risk.
+## Documentation and verification
 
-## Code Organization
-
-- Follow `docs/code-organization.md`.
-- Keep production classes under 200 physical lines unless a local exception is clearly easier to defend than a split.
-- Keep one public/internal type per file: class, record, struct, enum or interface.
-- Use feature/action folders for Application use cases: `Command.cs`, `Query.cs`, `Handler.cs`, `Validator.cs`, `Response.cs`.
-- Keep handlers as orchestration. Put parsing, rendering, policy, persistence detail and provider detail behind named collaborators.
-- Keep endpoint handlers transport-focused: bind input, dispatch Application request, map response.
-- Put business validation in validators or named policies, not endpoint lambdas.
-- Centralize public error-code and HTTP-status mapping.
-- Prefer typed options and constants over scattered configuration strings.
-- Add abstractions only when they protect a real boundary or remove meaningful duplication.
-- Use explicit names that describe the workflow concept, not vague helpers.
-
-## Documentation Rules
-
-- Keep public docs synchronized with behavior changes.
-- If a change affects setup, security posture, provider behavior, request/response shape, persistence, evaluation semantics or tool policy, update the matching file under `docs/` and the README when needed.
-- Preserve honest framing: this is a starter kit/reference implementation, not a production deployment.
-- Document intentional trade-offs instead of hiding them.
-- Keep release notes factual: implemented features, defaults, known non-goals and verification scope.
-
-## Verification
-
-Use the smallest reliable check first, then broaden when the changed surface warrants it.
-
-Common commands:
+Synchronize docs and README for setup, safety, provider behavior, API, persistence, evaluations or tool policy. Keep framing, trade-offs and release notes factual.
 
 ```powershell
-dotnet restore GenAIPlatform.slnx
+dotnet restore --locked-mode GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
-dotnet test GenAIPlatform.slnx
 dotnet format GenAIPlatform.slnx --verify-no-changes --verbosity minimal
-powershell -ExecutionPolicy Bypass -File scripts\package-vulnerability-gate.ps1
 powershell -ExecutionPolicy Bypass -File scripts\code-organization-gate.ps1
-```
-
-For persistence-sensitive changes:
-
-```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package-vulnerability-gate.ps1
+dotnet test --solution GenAIPlatform.slnx
 $env:GENAI_REQUIRE_DOCKER_TESTS = "true"
-dotnet test tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
+dotnet test --project tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
 ```
 
-## Contribution And Release Flow
+## When unsure
 
-- `main` is protected. All changes land through a pull request; never push directly to `main`.
-- An automated agent may push a feature or release branch and open a pull request only after explicit
-  maintainer approval. It must not push to `main` and must not push tags.
-- Before opening a pull request, run the local verification commands above and stage only intended
-  files with explicit paths; never `git add -A`.
-- Keep commits atomic and green: one logical change per commit, each passing the gate.
-- For a public release PR, update `VERSION` with SemVer without a leading `v`, update `CHANGELOG.md`,
-  and add the matching `docs/release-notes-v<version>.md` file.
-- Releases are automatic after a release PR that changes `VERSION` is merged to `main`: the
-  `publish-release` workflow runs on that `main` push, reads `VERSION`, validates the matching
-  release-notes file, reruns build/format/code-organization/vulnerability/unit-test gates, tags the
-  current `main` HEAD and publishes the GitHub release. Full integration coverage is enforced before
-  merge by PR/main CI. Non-release PRs must not change `VERSION`.
-- Normal releases do not require `Run workflow`. `workflow_dispatch` and direct tag pushes are recovery
-  paths only. Agents must not push release tags.
-
-## When Unsure
-
-Prefer the existing architecture and documented trade-offs. Ask only when a decision changes architecture, versioning, security posture or public behavior. For local implementation details, make the conservative choice that keeps the starter kit understandable.
+Prefer existing architecture and trade-offs. Ask only when a choice changes architecture, versioning, security posture or public behavior; otherwise choose the conservative, understandable implementation.

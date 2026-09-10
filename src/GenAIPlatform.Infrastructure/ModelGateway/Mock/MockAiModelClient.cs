@@ -1,7 +1,6 @@
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using GenAIPlatform.Application.Core.ModelClients;
 
 namespace GenAIPlatform.Infrastructure.ModelGateway.Mock;
 

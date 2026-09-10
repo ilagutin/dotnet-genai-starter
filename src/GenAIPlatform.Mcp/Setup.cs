@@ -20,7 +20,7 @@ public static class Setup
         services.AddKnowledgeApplication(configuration);
         services.AddGenerationApplication(configuration);
         services.AddAgenticApplication(configuration);
-        services.AddUsageApplication(configuration);
+        services.AddUsageApplication();
         services.AddInfrastructure(configuration);
         services.AddMcpUserContext(configuration);
 

@@ -1,7 +1,6 @@
+using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Evaluations.StartRun;
 using GenAIPlatform.Domain.Evaluations;
-using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Evaluations;
 
 namespace GenAIPlatform.Evaluations;
 

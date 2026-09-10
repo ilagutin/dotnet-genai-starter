@@ -1,5 +1,3 @@
-using GenAIPlatform.Domain.Evaluations;
-
 namespace GenAIPlatform.Domain.Evaluations.Checks;
 
 public sealed class EvaluationCheckRunner

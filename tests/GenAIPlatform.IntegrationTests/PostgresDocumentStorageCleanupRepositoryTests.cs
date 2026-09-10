@@ -306,7 +306,7 @@ public sealed class PostgresDocumentStorageCleanupRepositoryTests(
             FailureReason: null);
 
         await services
-            .GetRequiredService<IDocumentIngestionRepository>()
+            .GetRequiredService<IDocumentMetadataRepository>()
             .CreateDocumentWithJobAsync(document, indexingJob, TestContext.Current.CancellationToken);
     }
 

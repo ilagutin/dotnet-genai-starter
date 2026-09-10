@@ -5,6 +5,7 @@ internal sealed class ExternalMcpConnectionState
     private readonly object gate = new();
     private readonly Dictionary<string, ExternalMcpServerConnection> connections = new(StringComparer.Ordinal);
     private IReadOnlyList<ExternalMcpServerSnapshot> snapshots = [];
+    private bool acceptingConnections = true;
 
     public IReadOnlyList<ExternalMcpServerSnapshot> GetSnapshots()
     {
@@ -28,11 +29,25 @@ internal sealed class ExternalMcpConnectionState
         }
     }
 
-    public void SetConnection(string serverName, ExternalMcpServerConnection connection)
+    public bool TrySetConnection(string serverName, ExternalMcpServerConnection connection)
     {
         lock (gate)
         {
+            if (!acceptingConnections || connections.ContainsKey(serverName))
+            {
+                return false;
+            }
+
             connections[serverName] = connection;
+            return true;
+        }
+    }
+
+    public void StopAcceptingConnections()
+    {
+        lock (gate)
+        {
+            acceptingConnections = false;
         }
     }
 

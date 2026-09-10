@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Core.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -8,7 +6,7 @@ namespace GenAIPlatform.Application.Knowledge.Documents;
 internal sealed class DocumentStorageCleanupRequestProcessor(
     IDocumentStorage documentStorage,
     IDocumentStorageCleanupRepository cleanupRepository,
-    IDocumentIngestionRepository repository,
+    IDocumentMetadataRepository repository,
     IOptions<DocumentIngestionOptions> ingestionOptions,
     ILogger<DocumentStorageCleanupRequestProcessor> logger)
 {

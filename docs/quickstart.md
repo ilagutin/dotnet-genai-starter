@@ -32,7 +32,7 @@ Docker/demo placeholders.
 ```powershell
 dotnet restore GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
-dotnet test GenAIPlatform.slnx
+dotnet test --solution GenAIPlatform.slnx
 ```
 
 PostgreSQL repository tests use Testcontainers. Outside CI they skip when Docker
@@ -57,36 +57,43 @@ zero-magnitude embedding arrays are left without `embedding_vector` and will not
 participate in retrieval; re-index those documents to regenerate valid vectors.
 
 Local document storage defaults to
-`GenAIPlatform:DocumentStorage:RootPath=storage/documents`. In source-tree local
-runs, that starter-kit fallback resolves the relative path from the repository
-root so the API and Worker share `storage/documents` even if they are launched
-from different current directories. Outside the repository layout, configure the
-same absolute path for both processes; startup validation fails when a relative
-root cannot be resolved safely. Orphaned document storage cleanup requests are
-stored in PostgreSQL (`genai.document_storage_cleanup_requests`) so API and
-Worker hosts do not need a shared local cleanup journal. When using the local
-filesystem storage adapter across multiple hosts, the document files themselves
-still need shared storage or a replaceable storage adapter that both hosts can
-access.
+`GenAIPlatform:DocumentStorage:RootPath=storage/documents`, resolved from each
+host's `AppContext.BaseDirectory`. That is useful for a single published host,
+but it does not make separately launched API and Worker processes share files.
+For the local two-process demo, set one matching absolute path in both terminals.
+Docker Compose starts PostgreSQL only and cannot configure either host process.
+Orphaned document storage cleanup requests are stored in PostgreSQL
+(`genai.document_storage_cleanup_requests`) so API and Worker hosts do not need
+a shared local cleanup journal. When using the local filesystem storage adapter
+across multiple hosts, the document files themselves still need shared storage
+or a replaceable storage adapter that both hosts can access.
+
+Run the API from the root of your clone:
 
 ```powershell
-$env:GenAIPlatform__DocumentStorage__RootPath = "E:\genai-platform-storage\documents"
-```
-
-Run the API:
-
-```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-dotnet run --project src/GenAIPlatform.Api --launch-profile http
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http
 ```
 
 In a second terminal, run the background worker so uploaded documents are
-indexed. Set the connection string again in this terminal; PowerShell process
+indexed. Start from the same clone root and repeat the identical setup. PowerShell
 environment variables do not carry into a new window:
 
 ```powershell
+$repositoryRoot = (Resolve-Path .).Path
+Set-Location $repositoryRoot
+$sharedStorage = Join-Path $repositoryRoot ".local\quickstart-storage\documents"
 $env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
-dotnet run --project src/GenAIPlatform.Worker
+$env:GenAIPlatform__DocumentStorage__RootPath = $sharedStorage
+$env:GenAIPlatform__ModelGateway__Provider = "Mock"
+$env:GenAIPlatform__Embeddings__Provider = "Mock"
+dotnet run --project src/GenAIPlatform.Worker --no-build
 ```
 
 Useful local endpoints:
@@ -223,6 +230,14 @@ $env:GenAIPlatform__ModelGateway__DefaultModel = "<model-name>"
 $env:GenAIPlatform__ModelGateway__OpenAiCompatible__ApiKey = "<api-key>"
 ```
 
+Chat completion retries honor positive `Retry-After` seconds or future dates,
+with exponential fallback for unusable hints and 0 through 20 percent jitter.
+The model-only `GenAIPlatform__ModelGateway__OpenAiCompatible__RetryMaxDelaySeconds`
+setting defaults to `30` and accepts `1` through `300`. The final delay saturates
+at this cap, so a 60-second hint waits 30 seconds with defaults. HTTP 501 and 505
+are not retried; 408, 429 and other 5xx are. Caller cancellation interrupts
+backoff and prevents another attempt. See [model retries](model-gateway.md#chat-completion-retries).
+
 To use an OpenAI-compatible embeddings endpoint, override configuration locally:
 
 ```powershell
@@ -253,10 +268,10 @@ sharing it; do not fabricate real-provider evidence from mock-provider data.
 ## Demo Flow Checklist
 
 1. `docker compose up -d postgres`
-2. Set `ConnectionStrings__GenAIPlatform` in the API terminal.
-3. `dotnet run --project src/GenAIPlatform.Api --launch-profile http`
-4. Set `ConnectionStrings__GenAIPlatform` in the Worker terminal.
-5. `dotnet run --project src/GenAIPlatform.Worker`
+2. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the API terminal.
+3. `dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http`
+4. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the Worker terminal.
+5. `dotnet run --project src/GenAIPlatform.Worker --no-build`
 6. `GET /api/v1/health`
 7. `POST /api/v1/chat/direct`
 8. Upload [samples/documents/demo-notes.md](../samples/documents/demo-notes.md)

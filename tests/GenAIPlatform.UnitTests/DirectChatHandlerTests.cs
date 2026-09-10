@@ -1,17 +1,13 @@
-using GenAIPlatform.Application.Generation.Prompts.Templates;
-using GenAIPlatform.Application.Generation.Prompts.Rendering;
-using GenAIPlatform.Infrastructure.Observability;
-using GenAIPlatform.Infrastructure.Observability.Pricing;
-using GenAIPlatform.Infrastructure.Observability.Logging;
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Domain.Prompts;
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Application.Generation.Chat;
-using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Application.Generation.Prompts;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Generation.Prompts.Rendering;
+using GenAIPlatform.Application.Generation.Prompts.Templates;
+using GenAIPlatform.Domain.Observability;
+using GenAIPlatform.Domain.Prompts;
+using GenAIPlatform.Infrastructure.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

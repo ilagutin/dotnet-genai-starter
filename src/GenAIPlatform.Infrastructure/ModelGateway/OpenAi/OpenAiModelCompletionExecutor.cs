@@ -1,5 +1,4 @@
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 
 namespace GenAIPlatform.Infrastructure.ModelGateway.OpenAi;
@@ -10,13 +9,15 @@ internal sealed class OpenAiModelCompletionExecutor(
     OpenAiModelRequestFactory requestFactory,
     OpenAiModelResponseMapper responseMapper,
     OpenAiModelErrorMapper errorMapper,
-    OpenAiModelRetryPolicy retryPolicy)
+    OpenAiModelRetryPolicy retryPolicy,
+    TimeProvider timeProvider)
 {
     public async Task<AiModelResponse> CompleteAsync(
         AiModelRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var clientOptions = optionsResolver.Get();
         var endpointUri = optionsResolver.GetEndpointUri(clientOptions);
@@ -26,6 +27,7 @@ internal sealed class OpenAiModelCompletionExecutor(
 
         for (var attempt = 0; ; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             using var httpRequest = requestFactory.CreateHttpRequest(
                 clientOptions,
                 request,
@@ -34,8 +36,8 @@ internal sealed class OpenAiModelCompletionExecutor(
                 idempotencyKey);
             try
             {
-                using var attemptTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                attemptTimeout.CancelAfter(TimeSpan.FromSeconds(clientOptions.TimeoutSeconds));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(clientOptions.TimeoutSeconds), timeProvider);
+                using var attemptTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
                 using var httpResponse = await httpClient.SendAsync(httpRequest, attemptTimeout.Token);
                 var responseContent = await httpResponse.Content.ReadAsStringAsync(attemptTimeout.Token);

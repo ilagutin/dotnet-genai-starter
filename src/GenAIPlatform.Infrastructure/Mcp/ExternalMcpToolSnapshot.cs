@@ -9,4 +9,5 @@ internal sealed record ExternalMcpToolSnapshot(
     string Description,
     string SnapshotHash,
     JsonElement InputSchema,
+    bool IsSchemaless,
     TimeSpan ToolCallTimeout);

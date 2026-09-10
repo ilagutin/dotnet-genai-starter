@@ -1,10 +1,13 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Knowledge.Embeddings;
+using GenAIPlatform.Application.Core;
 using GenAIPlatform.Application.Core.Embeddings;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
+using GenAIPlatform.Application.Knowledge;
+using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Infrastructure;
+using GenAIPlatform.Infrastructure.Configuration;
+using GenAIPlatform.Infrastructure.Documents.Local;
+using GenAIPlatform.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -121,6 +124,44 @@ public sealed class HostCompositionTests
         Assert.Equal("system", userContext.UserId);
         Assert.Null(userContext.TenantId);
         Assert.Contains("system", userContext.Roles);
+    }
+
+    [Fact]
+    public void WorkerComposition_BindsConsumedOptionsWithoutStartingTheWorker()
+    {
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"genai-worker-storage-{Guid.NewGuid():n}");
+        using var provider = BuildWorkerServiceProvider(new Dictionary<string, string?>
+        {
+            ["GenAIPlatform:DocumentIngestion:ChunkMaxCharacters"] = "2048",
+            ["GenAIPlatform:DocumentStorage:RootPath"] = storageRoot,
+            ["GenAIPlatform:Postgres:ConnectionStringName"] = "WorkerDatabase"
+        });
+
+        Assert.Single(provider.GetServices<IHostedService>());
+
+        using var scope = provider.CreateScope();
+        var ingestion = scope.ServiceProvider.GetRequiredService<IOptions<DocumentIngestionOptions>>().Value;
+        var storage = scope.ServiceProvider.GetRequiredService<IOptions<LocalDocumentStorageOptions>>().Value;
+        var postgres = scope.ServiceProvider.GetRequiredService<IOptions<PostgresOptions>>().Value;
+
+        Assert.Equal(2048, ingestion.ChunkMaxCharacters);
+        Assert.Equal(storageRoot, storage.RootPath);
+        Assert.Equal("WorkerDatabase", postgres.ConnectionStringName);
+    }
+
+    [Fact]
+    public void WorkerComposition_RejectsInvalidIngestionOptionsWithoutStartingTheWorker()
+    {
+        using var provider = BuildWorkerServiceProvider(new Dictionary<string, string?>
+        {
+            ["GenAIPlatform:DocumentIngestion:MaxUploadBytes"] = "0"
+        });
+
+        using var scope = provider.CreateScope();
+        var exception = Assert.Throws<OptionsValidationException>(() =>
+            _ = scope.ServiceProvider.GetRequiredService<IOptions<DocumentIngestionOptions>>().Value);
+
+        Assert.Contains("Document ingestion", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -420,62 +461,32 @@ public sealed class HostCompositionTests
     }
 
     [Fact]
-    public async Task LocalDocumentStorage_DefaultRelativeRootCanBeReadAcrossDifferentCurrentDirectories()
+    public async Task LocalDocumentStoragePathResolver_UsesHostBaseDirectoryForRelativeRoots()
     {
         var originalCurrentDirectory = Environment.CurrentDirectory;
-        var apiCurrentDirectory = Directory.CreateTempSubdirectory("genai-api-cwd-").FullName;
-        var workerCurrentDirectory = Directory.CreateTempSubdirectory("genai-worker-cwd-").FullName;
-        StoredDocument? stored = null;
+        var unrelatedCurrentDirectory = Directory.CreateTempSubdirectory("genai-unrelated-cwd-").FullName;
+        var relativeRoot = Path.Combine("published-layout", "storage", Guid.NewGuid().ToString("n"));
+        var absoluteRoot = Path.Combine(Path.GetTempPath(), $"genai-absolute-root-{Guid.NewGuid():n}");
 
         await CurrentDirectoryLock.WaitAsync();
         try
         {
-            Environment.CurrentDirectory = apiCurrentDirectory;
-            using var apiHost = CreateHostWithConfiguration(new Dictionary<string, string?>());
-            await apiHost.StartAsync();
-            var apiStorage = apiHost.Services.GetRequiredService<IDocumentStorage>();
+            Environment.CurrentDirectory = unrelatedCurrentDirectory;
 
-            stored = await apiStorage.SaveAsync(
-                Guid.NewGuid(),
-                "default-root.md",
-                new MemoryStream("default root content"u8.ToArray()),
-                maxSizeBytes: 1024,
-                TestContext.Current.CancellationToken);
-            await apiStorage.CommitAsync(stored, TestContext.Current.CancellationToken);
-
-            Assert.False(Path.IsPathFullyQualified(stored.StoragePath));
-
-            Environment.CurrentDirectory = workerCurrentDirectory;
-            using var workerHost = CreateHostWithConfiguration(new Dictionary<string, string?>());
-            await workerHost.StartAsync();
-            var workerStorage = workerHost.Services.GetRequiredService<IDocumentStorage>();
-
-            await using (var stream = await workerStorage.OpenReadAsync(
-                             stored.StoragePath,
-                             TestContext.Current.CancellationToken))
-            using (var reader = new StreamReader(stream))
-            {
-                Assert.Equal("default root content", await reader.ReadToEndAsync());
-            }
-
-            await workerStorage.DeleteAsync(stored.StoragePath, TestContext.Current.CancellationToken);
-            stored = null;
+            Assert.Equal(
+                Path.GetFullPath(relativeRoot, AppContext.BaseDirectory),
+                LocalDocumentStoragePathResolver.ResolveRootPath(relativeRoot));
+            Assert.Equal(
+                Path.GetFullPath(absoluteRoot),
+                LocalDocumentStoragePathResolver.ResolveRootPath(absoluteRoot));
+            Assert.False(LocalDocumentStoragePathResolver.CanResolveRootPath("invalid\0root"));
         }
         finally
         {
             Environment.CurrentDirectory = originalCurrentDirectory;
             CurrentDirectoryLock.Release();
 
-            if (stored is not null)
-            {
-                using var cleanupHost = CreateHostWithConfiguration(new Dictionary<string, string?>());
-                await cleanupHost.StartAsync();
-                var cleanupStorage = cleanupHost.Services.GetRequiredService<IDocumentStorage>();
-                await cleanupStorage.DeleteAsync(stored.StoragePath, TestContext.Current.CancellationToken);
-            }
-
-            Directory.Delete(apiCurrentDirectory, recursive: true);
-            Directory.Delete(workerCurrentDirectory, recursive: true);
+            Directory.Delete(unrelatedCurrentDirectory, recursive: true);
         }
     }
 
@@ -530,6 +541,26 @@ public sealed class HostCompositionTests
                 services.AddInfrastructure(context.Configuration);
             })
             .Build();
+    }
+
+    private static ServiceProvider BuildWorkerServiceProvider(
+        IReadOnlyDictionary<string, string?> values)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationCore(configuration);
+        services.AddKnowledgeApplication(configuration);
+        services.AddInfrastructure(configuration);
+        services.AddWorker();
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
     }
 
     private static Stream CreateFailingSaveStream(string failureMode)

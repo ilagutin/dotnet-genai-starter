@@ -109,8 +109,8 @@ When updating README or docs, verify referenced file paths against the current w
 Use the smallest reliable command first, then broaden:
 
 ```powershell
-dotnet test tests\GenAIPlatform.UnitTests\GenAIPlatform.UnitTests.csproj --filter "FullyQualifiedName~Rag"
-dotnet test tests\GenAIPlatform.UnitTests\GenAIPlatform.UnitTests.csproj
+dotnet test --project tests\GenAIPlatform.UnitTests\GenAIPlatform.UnitTests.csproj --filter "FullyQualifiedName~Rag"
+dotnet test --project tests\GenAIPlatform.UnitTests\GenAIPlatform.UnitTests.csproj
 dotnet build GenAIPlatform.slnx
 ```
 
@@ -118,13 +118,13 @@ For retrieval, pgvector, schema or persistence changes:
 
 ```powershell
 $env:GENAI_REQUIRE_DOCKER_TESTS = "true"
-dotnet test tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
+dotnet test --project tests\GenAIPlatform.IntegrationTests\GenAIPlatform.IntegrationTests.csproj
 ```
 
 Run broader checks when the change crosses public behavior, docs or multiple modules:
 
 ```powershell
-dotnet test GenAIPlatform.slnx
+dotnet test --solution GenAIPlatform.slnx
 dotnet format GenAIPlatform.slnx --verify-no-changes --verbosity minimal
 powershell -ExecutionPolicy Bypass -File scripts\code-organization-gate.ps1
 ```

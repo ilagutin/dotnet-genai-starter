@@ -1,5 +1,3 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
 
 internal sealed class StaleIndexingJobException : Exception

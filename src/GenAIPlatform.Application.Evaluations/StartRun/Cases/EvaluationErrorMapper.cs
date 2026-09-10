@@ -1,8 +1,5 @@
-using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Application.Knowledge.Embeddings;
-using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun.Cases;

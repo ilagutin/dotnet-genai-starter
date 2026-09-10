@@ -14,6 +14,8 @@ public sealed class ExternalMcpServerOptions
 
     public List<string> AllowedTools { get; init; } = [];
 
+    public List<string> SchemalessTools { get; init; } = [];
+
     public double ConnectTimeoutSeconds { get; init; } = 10;
 
     public double ToolCallTimeoutSeconds { get; init; } = 30;

@@ -1,5 +1,5 @@
-using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 
@@ -47,13 +47,13 @@ internal sealed class AgenticToolCallProcessor(
                     index,
                     result.ExecutionStatus == ToolExecutionStatus.Failed ? "prior_tool_failed" : "prior_tool_rejected",
                     result.ExecutionStatus == ToolExecutionStatus.Failed
-                        ? "A previous tool call failed before these proposed calls could execute."
+                        ? "A previous tool call did not confirm success before these proposed calls could execute."
                         : "A previous tool call was rejected before these proposed calls could execute.");
 
                 return result.ExecutionStatus == ToolExecutionStatus.Failed
                     ? new AgenticToolProcessingOutcome(
                         AgenticChatStatus.ToolFailed,
-                        $"Tool call {toolCall.Name} failed during backend execution.",
+                        $"Tool call {toolCall.Name} did not confirm successful completion.",
                         step)
                     : new AgenticToolProcessingOutcome(
                         AgenticChatStatus.ToolRejected,

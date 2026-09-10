@@ -6,13 +6,20 @@ namespace GenAIPlatform.Infrastructure.Mcp;
 internal static class ExternalMcpNameSanitizer
 {
     public const int MaxToolNameLength = 64;
+    public const int MaxLogIdentityLength = 64;
 
     private const int HashSuffixLength = 10;
 
     public static string BuildPrefixedToolName(string serverName, string toolName)
     {
         var name = $"mcp_{SanitizeSegment(serverName, "server")}_{SanitizeSegment(toolName, "tool")}";
-        return ShortenIfNeeded(name);
+        return ShortenIfNeeded(name, MaxToolNameLength, "mcp");
+    }
+
+    public static string SanitizeLogIdentity(string serverName)
+    {
+        var sanitized = SanitizeSegment(serverName, "server");
+        return ShortenIfNeeded(sanitized, MaxLogIdentityLength, "server");
     }
 
     public static string SanitizeSegment(string value, string fallback)
@@ -47,24 +54,24 @@ internal static class ExternalMcpNameSanitizer
         return string.IsNullOrWhiteSpace(sanitized) ? fallback : sanitized;
     }
 
-    private static string ShortenIfNeeded(string name)
+    private static string ShortenIfNeeded(string name, int maxLength, string fallback)
     {
-        if (name.Length <= MaxToolNameLength)
+        if (name.Length <= maxLength)
         {
             return name;
         }
 
         var suffix = $"_{ShortHash(name)}";
-        var prefixLength = MaxToolNameLength - suffix.Length;
+        var prefixLength = maxLength - suffix.Length;
         var prefix = name[..prefixLength].TrimEnd('_');
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            prefix = "mcp";
+            prefix = fallback;
         }
 
-        if (prefix.Length + suffix.Length > MaxToolNameLength)
+        if (prefix.Length + suffix.Length > maxLength)
         {
-            prefix = prefix[..(MaxToolNameLength - suffix.Length)];
+            prefix = prefix[..(maxLength - suffix.Length)];
         }
 
         return prefix + suffix;

@@ -1,7 +1,7 @@
-using GenAIPlatform.Application.Agentic.Validation;
-using GenAIPlatform.Domain.Agentic;
 using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Tools;
 
@@ -11,7 +11,7 @@ internal sealed class DraftEmailTool : IAgentTool
         "DraftEmail",
         "Creates a local draft email payload. It never sends email.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {
@@ -29,11 +29,6 @@ internal sealed class DraftEmailTool : IAgentTool
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        if (arguments.ValueKind != JsonValueKind.Object)
-        {
-            return ToolValidationResult.Invalid("invalid_arguments", "DraftEmail expects an object argument.");
-        }
-
         var to = ReadRequiredString(arguments, "to");
         var subject = ReadRequiredString(arguments, "subject");
         var body = ReadRequiredString(arguments, "body");
@@ -77,11 +72,5 @@ internal sealed class DraftEmailTool : IAgentTool
 
         var text = value.GetString()?.Trim();
         return string.IsNullOrWhiteSpace(text) ? null : text;
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

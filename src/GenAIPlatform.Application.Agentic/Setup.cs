@@ -3,6 +3,7 @@ using GenAIPlatform.Application.Agentic.Chat;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Tools.Execute;
 using GenAIPlatform.Application.Agentic.Tools.Execution;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Domain.Agentic;
 using Microsoft.Extensions.Configuration;
@@ -26,6 +27,7 @@ public static class Setup
         services.TryAddScoped<AgenticPromptBuilder>();
         services.TryAddScoped<AgentToolAuditLogWriter>();
         services.TryAddScoped<AgentToolAuditWriter>();
+        services.TryAddSingleton<AgentToolArgumentValidator>();
         services.TryAddScoped<GovernedAgentToolExecutor>();
         services.TryAddScoped<AgentToolExecutor>();
         services.TryAddScoped<AgenticToolCallProcessor>();

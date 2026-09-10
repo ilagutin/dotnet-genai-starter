@@ -1,7 +1,6 @@
 using GenAIPlatform.Application.Core.Errors;
-using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Exceptions;
+using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
@@ -41,13 +40,12 @@ internal sealed class ApiExceptionHandler(
             ForbiddenRequestException current => ApiErrorMapping.Forbidden(current),
             NotFoundException current => ApiErrorMapping.NotFound(current),
             ConflictException current => ApiErrorMapping.Conflict(current),
-            DocumentTooLargeException current => ApiErrorMapping.PayloadTooLarge(
-                current,
+            DocumentTooLargeException => ApiErrorMapping.PayloadTooLarge(
                 ingestionOptions.Value.MaxUploadBytes),
             ProviderException current => ApiErrorMapping.ProviderProblem(current),
             ValidationException current => ApiErrorMapping.BadRequest(current.Message),
             EvaluationValidationException current => ApiErrorMapping.BadRequest(current.Message),
-            DomainException current => ApiErrorMapping.InternalDomainViolation(current),
+            DomainException => ApiErrorMapping.InternalDomainViolation(),
             _ => null
         };
     }

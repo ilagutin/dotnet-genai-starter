@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +12,53 @@ namespace GenAIPlatform.IntegrationTests;
 
 public sealed class OpenAiCompatibleModelClientTests
 {
+    [Theory]
+    [InlineData("null", null, null, null)]
+    [InlineData("{}", null, null, null)]
+    [InlineData("{\"total_tokens\":7}", null, null, 7)]
+    [InlineData("{\"prompt_tokens\":3,\"completion_tokens\":4}", 3, 4, null)]
+    public async Task CompleteAsync_PreservesNullableProviderUsageOutsideAgenticLoop(
+        string usageJson, int? input, int? output, int? total)
+    {
+        await using var app = LoopbackTestServer.CreateBuilder().Build();
+        app.MapPost("/v1/chat/completions", async context =>
+        {
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(
+                "{\"model\":\"nullable-model\",\"choices\":[{\"message\":{\"content\":\"accepted\"}}],\"usage\":" + usageJson + "}");
+        });
+        await app.StartAsync();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["GenAIPlatform:ModelGateway:Provider"] = "OpenAiCompatible",
+            ["GenAIPlatform:ModelGateway:OpenAiCompatible:BaseUrl"] = GetServerAddress(app),
+            ["GenAIPlatform:ModelGateway:OpenAiCompatible:ApiKey"] = "local-test",
+            ["GenAIPlatform:ModelGateway:OpenAiCompatible:AllowInsecureHttpForLoopback"] = "true",
+            ["GenAIPlatform:ModelGateway:OpenAiCompatible:MaxRetryAttempts"] = "0"
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddTestApplication(configuration);
+        services.AddInfrastructure(configuration);
+        using var provider = services.BuildServiceProvider();
+        var response = await provider.GetRequiredService<IAiModelClient>().CompleteAsync(
+            new("nullable-test", "nullable-model", [new(AiMessageRole.User, "hello")]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("accepted", response.Content);
+        Assert.Equal(input, response.Usage?.InputTokens);
+        Assert.Equal(output, response.Usage?.OutputTokens);
+        Assert.Equal(total, response.Usage?.TotalTokens);
+        if (usageJson == "null")
+        {
+            Assert.Null(response.Usage);
+        }
+        else
+        {
+            Assert.NotNull(response.Usage);
+        }
+    }
+
     [Fact]
     public async Task CompleteAsync_RetriesTransientProviderStatus()
     {

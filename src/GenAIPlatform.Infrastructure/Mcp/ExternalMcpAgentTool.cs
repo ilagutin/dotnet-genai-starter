@@ -1,14 +1,16 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-internal sealed class ExternalMcpAgentTool(
+internal sealed partial class ExternalMcpAgentTool(
     IExternalMcpConnectionManager connectionManager,
-    ExternalMcpToolSnapshot snapshot) : IAgentTool
+    ExternalMcpToolSnapshot snapshot,
+    ILogger<ExternalMcpAgentTool> logger) : IAgentTool
 {
     public AiToolDefinition Definition { get; } = new(
         snapshot.PrefixedName,
@@ -19,16 +21,11 @@ internal sealed class ExternalMcpAgentTool(
     public ToolPolicyMetadata Policy { get; } = ToolPolicyMetadata.ApprovalRequired(
         "External MCP tools require backend approval before execution.");
 
+    public ToolAuditContentPolicy AuditContentPolicy => ToolAuditContentPolicy.MetadataOnly;
+
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        if (arguments.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-        {
-            return ToolValidationResult.Valid(ExternalMcpJsonRoundTrip.EmptyObject());
-        }
-
-        return arguments.ValueKind == JsonValueKind.Object
-            ? ToolValidationResult.Valid(arguments.Clone())
-            : ToolValidationResult.Invalid("invalid_arguments", "External MCP tools expect a JSON object argument.");
+        return ToolValidationResult.Valid(arguments.Clone());
     }
 
     public async Task<ToolExecutionResult> ExecuteAsync(
@@ -48,32 +45,63 @@ internal sealed class ExternalMcpAgentTool(
                     ToolExecutionStatus.Failed,
                     result.Payload,
                     result.ErrorCode ?? "mcp_tool_error",
-                    result.ErrorMessage ?? "External MCP tool returned an error.")
-                : new ToolExecutionResult(ToolExecutionStatus.Succeeded, result.Payload);
+                    result.ErrorMessage ?? "External MCP tool returned an error.",
+                    result.PayloadMetadata)
+                : new ToolExecutionResult(
+                    ToolExecutionStatus.Succeeded,
+                    result.Payload,
+                    PayloadMetadata: result.PayloadMetadata);
+        }
+        catch (ExternalMcpCallCanceledException)
+        {
+            var unknown = ExternalMcpToolCallResult.OutcomeUnknown();
+            return new ToolExecutionResult(
+                ToolExecutionStatus.Failed,
+                unknown.Payload,
+                unknown.ErrorCode,
+                unknown.ErrorMessage);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return new ToolExecutionResult(
-                ToolExecutionStatus.Failed,
-                ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_canceled",
-                "External MCP tool execution was canceled.");
+            throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
+            LogFailure(exception);
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_timeout",
-                "External MCP tool execution timed out.");
+                "mcp_server_unavailable",
+                "External MCP server is unavailable.");
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            LogFailure(exception);
             return new ToolExecutionResult(
                 ToolExecutionStatus.Failed,
                 ExternalMcpJsonRoundTrip.EmptyObject(),
-                "mcp_tool_failed",
-                "External MCP tool execution failed.");
+                "mcp_server_unavailable",
+                "External MCP server is unavailable.");
         }
     }
+
+    private void LogFailure(Exception exception)
+    {
+        LogExecutionFailed(
+            logger,
+            ExternalMcpNameSanitizer.SanitizeLogIdentity(snapshot.ServerName),
+            ExternalMcpNameSanitizer.SanitizeLogIdentity(snapshot.OriginalName),
+            exception.GetType().Name);
+    }
+
+    [LoggerMessage(
+        EventId = 4001,
+        EventName = "ExternalMcpToolExecutionFailed",
+        Level = LogLevel.Warning,
+        Message = "External MCP tool execution failed for {ServerName}/{ToolName} ({ExceptionType})")]
+    private static partial void LogExecutionFailed(
+        ILogger logger,
+        string serverName,
+        string toolName,
+        string exceptionType);
 }

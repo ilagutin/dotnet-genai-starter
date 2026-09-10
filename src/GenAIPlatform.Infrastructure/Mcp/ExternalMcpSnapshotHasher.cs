@@ -13,7 +13,8 @@ internal static class ExternalMcpSnapshotHasher
             originalName = tool.OriginalName,
             prefixedName = tool.PrefixedName,
             description = tool.Description,
-            inputSchema = tool.InputSchema
+            inputSchema = tool.InputSchema,
+            schemaless = tool.IsSchemaless
         });
 
         return $"sha256:{Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant()}";

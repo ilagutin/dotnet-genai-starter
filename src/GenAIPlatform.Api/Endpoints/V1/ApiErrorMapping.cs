@@ -1,10 +1,7 @@
 using GenAIPlatform.Application.Core.Errors;
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Knowledge.Retrieval;
-using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Core.Exceptions;
-using GenAIPlatform.Domain.Exceptions;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Knowledge.Retrieval;
 
 namespace GenAIPlatform.Api;
 
@@ -44,15 +41,6 @@ internal static class ApiErrorMapping
 
     public static IResult PayloadTooLarge(long maxUploadBytes)
     {
-        return PayloadTooLarge(
-            new DocumentTooLargeException($"Document file must be {maxUploadBytes} bytes or fewer."),
-            maxUploadBytes);
-    }
-
-    public static IResult PayloadTooLarge(
-        DocumentTooLargeException exception,
-        long maxUploadBytes)
-    {
         return Problem(
             "Document payload too large",
             $"Document file must be {maxUploadBytes} bytes or fewer.",
@@ -75,7 +63,7 @@ internal static class ApiErrorMapping
             });
     }
 
-    public static IResult InternalDomainViolation(DomainException exception)
+    public static IResult InternalDomainViolation()
     {
         return Problem(
             "Domain invariant violation",
@@ -127,45 +115,27 @@ internal static class ApiErrorMapping
     {
         return exception switch
         {
-            AiModelException => ToPublicModelErrorCode(exception.ErrorCode),
+            AiModelException => ToPublicGenerationErrorCode(exception.ErrorCode, isModel: true),
             RagVectorSearchException => ToPublicRetrievalErrorCode(exception.ErrorCode),
-            _ => ToPublicEmbeddingErrorCode(exception.ErrorCode)
+            _ => ToPublicGenerationErrorCode(exception.ErrorCode, isModel: false)
         };
     }
 
-    private static string ToPublicModelErrorCode(string? errorCode)
+    private static string ToPublicGenerationErrorCode(string? errorCode, bool isModel)
     {
-        return errorCode switch
+        return (errorCode, isModel) switch
         {
-            "authentication_error" or
-            "configuration_error" or
-            "empty_response" or
-            "invalid_json" or
-            "invalid_request" or
-            "provider_timeout" or
-            "provider_unavailable" or
-            "rate_limited" or
-            "timeout" or
-            "transport_error" => errorCode,
-            _ => "provider_error"
-        };
-    }
-
-    private static string ToPublicEmbeddingErrorCode(string? errorCode)
-    {
-        return errorCode switch
-        {
-            "authentication_error" or
-            "configuration_error" or
-            "empty_embedding" or
-            "invalid_embedding" or
-            "invalid_json" or
-            "invalid_request" or
-            "provider_timeout" or
-            "provider_unavailable" or
-            "rate_limited" or
-            "timeout" or
-            "transport_error" => errorCode,
+            ("authentication_error" or
+             "configuration_error" or
+             "invalid_json" or
+             "invalid_request" or
+             "provider_timeout" or
+             "provider_unavailable" or
+             "rate_limited" or
+             "timeout" or
+             "transport_error", _) => errorCode,
+            ("empty_response", true) => errorCode,
+            ("empty_embedding" or "invalid_embedding", false) => errorCode,
             _ => "provider_error"
         };
     }

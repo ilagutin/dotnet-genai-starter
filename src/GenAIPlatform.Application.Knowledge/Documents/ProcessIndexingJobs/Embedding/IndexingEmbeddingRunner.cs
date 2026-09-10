@@ -1,7 +1,5 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Lease;
 using GenAIPlatform.Domain.Documents;
 
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Embedding;

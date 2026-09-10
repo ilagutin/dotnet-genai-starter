@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Application.Core.Dispatching;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun;

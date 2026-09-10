@@ -18,6 +18,19 @@ The API registers the demo header-based `IUserContext` only for `Development` by
 
 Demo headers such as `X-Demo-User-Id`, `X-Demo-Tenant-Id` and `X-Demo-Roles` are caller-controlled sample inputs. They are useful for local walkthroughs, but they are not authentication and must not be trusted in deployed environments.
 
+## Usage Access
+
+Usage queries authenticate before reading roles or validating the date range. Anonymous callers
+receive 401, including callers claiming `admin`. Authenticated non-admin callers require both a
+user and tenant identity; missing or blank values receive 401. Omitted or blank scope filters use
+that identity, while an explicit user or tenant mismatch (ordinal, case-sensitive) receives 403
+before storage is queried. Authenticated admins retain aggregate and cross-scope queries. Reversed
+authenticated date ranges receive 400. The HTTP errors are ProblemDetails responses.
+
+MCP `get_usage` uses the same Application policy under the configured local service identity and
+maps denials to MCP errors. It does not authenticate each remote caller. These checks rely on the
+host's `IUserContext`; they do not make caller-controlled demo headers trustworthy.
+
 ## Retrieval Access
 
 Current document access model:
@@ -51,8 +64,11 @@ Search all documents
 - Full rendered prompt logging is disabled by default.
 - Metadata logging is allowed: request ID, user ID, model, prompt version, tokens, cost, status, retrieved document IDs.
 - If full prompt logging is ever enabled, it must require opt-in, redaction, encryption, retention policy and restricted access.
-- Tool execution is controlled by backend policy. The model may propose tool calls, but it cannot execute tools directly and never receives infrastructure credentials.
+- Tool execution is controlled by backend policy. The model may propose tool calls, but it cannot execute tools directly and never receives infrastructure credentials. The `approveRiskyTools` request flag is demo-only simulated approval: it has no second principal and pre-approves later model-selected risky calls in that request after validation and policy checks. A successful approval-required execution is recorded as `SimulatedApproved` in the tool audit log.
+- External MCP SDK wire logging is suppressed. Lifecycle diagnostics contain only bounded sanitized server identity and exception type, never exception messages, arguments or results.
 
 ## Tools
 
-Tool execution must go through backend policy. Risky tools require approval or must be rejected. The LLM must not receive infrastructure credentials.
+Tool execution must go through backend policy. Risky tools require simulated approval or must be rejected. Configured external MCP tools are all approval-gated. The LLM must not receive infrastructure credentials.
+
+External MCP uses two distinct payload boundaries. Provider-neutral execution JSON is limited to 32 KiB by default, with a configurable range from 23 bytes through 1 MiB, and remains available to the response/model path when within that bound; limiting is not redaction. Durable external audit is metadata-only for executed and skipped calls, with byte counts and omission/truncation markers only when a provider payload exists, but no argument values, returned content or durable error message. Built-in tool audit remains content-compatible. Historical rows are not rewritten and may contain older external content. Full rendered prompt logging remains disabled by default. Lifecycle log identity is separately sanitized and deterministically capped at 64 characters without changing canonical server identity.

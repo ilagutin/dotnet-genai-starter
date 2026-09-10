@@ -1,6 +1,5 @@
-using GenAIPlatform.Domain.Evaluations;
 using System.Text.Json;
-using GenAIPlatform.Application.Evaluations;
+using GenAIPlatform.Domain.Evaluations;
 using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Evaluations;

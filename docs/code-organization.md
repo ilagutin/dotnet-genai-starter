@@ -2,11 +2,17 @@
 
 These rules keep the production codebase easy to audit, refactor and hand over to another team. Treat them as engineering guardrails, not formatting ceremony. An exception is acceptable only when it is explicit, local and easier to defend than the split it avoids.
 
-These guardrails apply to production source code. Test code is out of scope for this gate.
+The automated gate scans authored C# under both `src/` and `tests/`. Generated suffixes and build
+output are excluded deterministically, while authored `AssemblyInfo.cs` remains in scope. Production
+files have a 400-line limit and test files have an 800-line limit. Production logical types remain
+limited to 400 aggregate lines across partial declarations; duplicate and status-literal checks apply
+only to production code. This recognizes that integration fixtures often need more readable setup than
+production code, while still preventing either area from growing without review.
 
 ## Size Guardrails
 
-- A production class should stay under 200 physical lines. If it exceeds that limit, the code should be split unless the file is a simple composition root, generated code, a framework-required shape, or another clearly justified exception.
+- A production class should stay under 400 physical lines. If it exceeds that limit, the code should be split unless the file is a simple composition root, generated code, a framework-required shape, or another clearly justified exception.
+- A test file should stay under 800 physical lines. Test fixtures and builders may be larger than production files when that keeps the scenario legible, but they still need extraction once they exceed the limit.
 - A method should fit in one readable workflow step. Long methods should be split by intent, for example validation, state loading, policy decision, side effect, persistence and response mapping.
 - A large handler is a design smell. A handler should orchestrate a use case; domain rules, provider-specific work, rendering, parsing, persistence details and reusable policies should live behind named collaborators.
 - Do not hide complexity by extracting vague helpers. Prefer small methods and types named after the business or workflow concept they represent.
@@ -35,9 +41,9 @@ These guardrails apply to production source code. Test code is out of scope for 
 ## File and Type Boundaries
 
 - Use one entity per file: one class, record, struct, enum or interface.
-- Avoid private nested entities. Keep one only when a framework or compiler shape makes extraction worse, and document that exception in review.
+- Private nested entities are permitted when they keep a test or framework-specific shape clear. Extract them when they obscure the owning type's responsibility.
 - Do not bundle command, response, validator, options, result and helper records into one convenience file. Split them so review diffs and ownership remain obvious.
-- Test fixtures, builders and test scenario files are exempt from this gate.
+- Test fixtures, builders and test scenario files are scanned for the 800-line file limit. They are exempt from production-only logical-type, duplicate and status-literal analysis.
 
 ## Application Pipeline Layout
 
@@ -161,10 +167,12 @@ Rationale: the API exception handler depends only on Application and Domain exce
 
 ## Dependency Registration
 
-- Each `src/*` project exposes a single `Setup.cs` at its root as the DI entry point. The class is named `Setup` and contains the public `AddX` extension method (`AddApplicationCore`, `AddKnowledgeApplication`, `AddGenerationApplication`, `AddAgenticApplication`, `AddEvaluationsApplication`, `AddUsageApplication`, `AddInfrastructure`, etc.). `Setup.cs` doubles as the assembly marker — prefer `typeof(Setup).Assembly` over arbitrary types for embedded-resource or assembly-scanning operations.
+- Each service-owning `src/*` project exposes a single root `Setup.cs` as its DI entry point, with a public `AddX` extension method. Domain contains no service registration and has no `Setup.cs`. Where present, `Setup` also acts as the assembly marker; prefer `typeof(Setup).Assembly` for resource or assembly scans.
 - Feature-level registration delegates live next to the feature as `<Feature>Setup.cs` (for example `ChatSetup.cs`, `AgenticSetup.cs`, `DocumentsSetup.cs`). The root `Setup.cs` composes these via feature-named extension methods such as `AddChatApplication`, `AddAgenticApplication` or `AddDocumentsApplication`.
 - Hosts compose explicit per-module registrations instead of a root `AddApplication` method. This keeps memory-only hosts able to reference `Core + Knowledge` without pulling in chat generation.
 - DI modules should register dependencies only; they should not contain business validation or runtime decision logic.
+- Persistence and RAG collaborators are scoped. OpenAI model collaborators and its typed HTTP executor are transient; the `IAiModelClient` selector remains scoped. Composition supplies `TimeProvider.System` only when no clock was registered.
+- Stable status strings are defined by seven explicit, exhaustive Domain enum mappings. Undefined values fail closed. The code gate exempts only their exact canonical paths from status-literal detection; size checks still apply.
 
 ## Self-Documenting Code
 
@@ -178,7 +186,8 @@ Rationale: the API exception handler depends only on Application and Domain exce
 
 Before merging a change, check:
 
-- Does any production class exceed 200 lines without a clear reason?
+- Does any production class exceed 400 lines without a clear reason?
+- Does any test file exceed 800 lines?
 - Does any method mix unrelated workflow stages?
 - Does each file contain one entity?
 - Are command/query, handler, validator and response types placed under a feature/action folder?

@@ -6,7 +6,16 @@ public sealed class DocumentIngestionOptions
 
     public long MaxUploadBytes { get; init; } = 2 * 1024 * 1024;
 
-    public IReadOnlyCollection<string> AllowedExtensions { get; init; } = [".txt", ".md"];
+    private IReadOnlyCollection<string> allowedExtensions = [".txt", ".md"];
+
+    public IReadOnlyCollection<string> AllowedExtensions
+    {
+        get => allowedExtensions;
+        init => allowedExtensions = value?.Select(static extension => extension?.Trim().ToLowerInvariant() ?? string.Empty).ToArray() ?? [];
+    }
+
+    internal bool AllowsExtension(string extension) =>
+        AllowedExtensions.Contains(extension.Trim().ToLowerInvariant(), StringComparer.Ordinal);
 
     public int ChunkMaxCharacters { get; init; } = 1200;
 

@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Core.Dispatching;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GenAIPlatform.Application.Core.Dispatching;

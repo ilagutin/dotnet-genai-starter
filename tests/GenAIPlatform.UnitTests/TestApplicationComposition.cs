@@ -20,8 +20,8 @@ internal static class TestApplicationComposition
         services.AddKnowledgeApplication(configuration);
         services.AddGenerationApplication(configuration);
         services.AddAgenticApplication(configuration);
-        services.AddEvaluationsApplication(configuration);
-        services.AddUsageApplication(configuration);
+        services.AddEvaluationsApplication();
+        services.AddUsageApplication();
         services.AddObservabilityInfrastructure(configuration);
 
         return services;

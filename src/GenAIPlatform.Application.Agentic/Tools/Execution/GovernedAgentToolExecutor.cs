@@ -1,11 +1,12 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Domain.Agentic;
-using System.Text.Json;
 
 namespace GenAIPlatform.Application.Agentic.Tools.Execution;
 
 internal sealed class GovernedAgentToolExecutor(
     ToolPolicy toolPolicy,
+    AgentToolArgumentValidator argumentValidator,
     AgentToolAuditLogWriter auditLogWriter)
 {
     public async Task<AgentToolExecutionResult> ExecuteAsync(
@@ -14,8 +15,9 @@ internal sealed class GovernedAgentToolExecutor(
     {
         var tool = request.Tools.FirstOrDefault(candidate =>
             string.Equals(candidate.Definition.Name, request.ToolName, StringComparison.Ordinal));
-        var validation = tool?.Validate(request.Arguments)
-            ?? ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
+        var validation = tool is not null
+            ? argumentValidator.Validate(tool, request.Arguments)
+            : ToolValidationResult.Invalid("unknown_tool", "The requested tool is not available.");
         var policy = toolPolicy.Decide(tool?.Policy, request.ToolName);
         var outcome = await ExecuteCoreAsync(
             request,
@@ -28,11 +30,14 @@ internal sealed class GovernedAgentToolExecutor(
             request.ToolName,
             AgentToolSchemaVersion.Resolve(request.RequestedSchemaVersion),
             ResolveAuditSchemaVersion(tool, request.RequestedSchemaVersion),
+            tool?.AuditContentPolicy ?? ToolAuditContentPolicy.IncludeContent,
+            GetUtf8Bytes(request.Arguments),
             validation,
             policy,
             outcome.ApprovalState,
             outcome.ExecutionStatus,
             outcome.Output,
+            outcome.PayloadMetadata,
             outcome.ErrorCode,
             outcome.ErrorMessage,
             outcome.Exception);
@@ -42,6 +47,7 @@ internal sealed class GovernedAgentToolExecutor(
             request.Context,
             CancellationToken.None);
 
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 
@@ -105,6 +111,7 @@ internal sealed class GovernedAgentToolExecutor(
                 policy.RequiresApproval,
                 execution.Status,
                 execution.Output,
+                execution.PayloadMetadata,
                 execution.ErrorCode,
                 execution.ErrorMessage);
         }
@@ -139,5 +146,10 @@ internal sealed class GovernedAgentToolExecutor(
     private static bool IsBackendExecutionStatus(ToolExecutionStatus status)
     {
         return status is ToolExecutionStatus.Succeeded or ToolExecutionStatus.Failed;
+    }
+
+    private static int GetUtf8Bytes(JsonElement value)
+    {
+        return System.Text.Encoding.UTF8.GetByteCount(value.GetRawText());
     }
 }

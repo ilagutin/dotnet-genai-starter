@@ -9,5 +9,7 @@ public enum AgenticChatStatus
     ToolFailed,
     ToolRejected,
     ApprovalRequired,
-    StepLimitExceeded
+    StepLimitExceeded,
+    UsageUnavailable,
+    InvalidUsage
 }

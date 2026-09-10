@@ -1,5 +1,5 @@
-using GenAIPlatform.Domain.Prompts;
 using System.Text.RegularExpressions;
+using GenAIPlatform.Domain.Prompts;
 
 namespace GenAIPlatform.Application.Generation.Prompts.Rendering;
 

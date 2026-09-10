@@ -1,8 +1,8 @@
-using GenAIPlatform.Application.Agentic.Validation;
-using GenAIPlatform.Domain.Agentic;
 using System.Security.Cryptography;
 using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Validation;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Tools;
 
@@ -12,7 +12,7 @@ internal sealed class CreateSupportTicketTool : IAgentTool
         "CreateSupportTicket",
         "Creates an idempotent demo support ticket.",
         "v1",
-        Json("""
+        ToolValidationResult.ParseJson("""
         {
           "type": "object",
           "properties": {
@@ -30,23 +30,14 @@ internal sealed class CreateSupportTicketTool : IAgentTool
 
     public ToolValidationResult Validate(JsonElement arguments)
     {
-        if (arguments.ValueKind != JsonValueKind.Object)
-        {
-            return ToolValidationResult.Invalid("invalid_arguments", "CreateSupportTicket expects an object argument.");
-        }
-
-        var title = ReadRequiredString(arguments, "title");
-        var description = ReadRequiredString(arguments, "description");
+        var title = ReadString(arguments, "title");
+        var description = ReadString(arguments, "description");
         if (title is null || description is null)
         {
             return ToolValidationResult.Invalid("missing_required_argument", "title and description are required.");
         }
 
-        var priority = ReadOptionalString(arguments, "priority") ?? "normal";
-        if (priority is not ("low" or "normal" or "high"))
-        {
-            return ToolValidationResult.Invalid("invalid_priority", "priority must be low, normal or high.");
-        }
+        var priority = ReadString(arguments, "priority") ?? "normal";
 
         return ToolValidationResult.Valid(JsonSerializer.SerializeToElement(new
         {
@@ -75,12 +66,7 @@ internal sealed class CreateSupportTicketTool : IAgentTool
         return Task.FromResult(new ToolExecutionResult(ToolExecutionStatus.Succeeded, output));
     }
 
-    private static string? ReadRequiredString(JsonElement arguments, string propertyName)
-    {
-        return ReadOptionalString(arguments, propertyName);
-    }
-
-    private static string? ReadOptionalString(JsonElement arguments, string propertyName)
+    private static string? ReadString(JsonElement arguments, string propertyName)
     {
         if (!arguments.TryGetProperty(propertyName, out var value) ||
             value.ValueKind != JsonValueKind.String)
@@ -90,11 +76,5 @@ internal sealed class CreateSupportTicketTool : IAgentTool
 
         var text = value.GetString()?.Trim();
         return string.IsNullOrWhiteSpace(text) ? null : text;
-    }
-
-    private static JsonElement Json(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
     }
 }

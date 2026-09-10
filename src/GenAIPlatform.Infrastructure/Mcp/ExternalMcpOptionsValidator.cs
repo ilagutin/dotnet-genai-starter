@@ -14,6 +14,16 @@ internal sealed class ExternalMcpOptionsValidator : IValidateOptions<ExternalMcp
             failures.Add("External MCP MaxParallelConnects must be at least 1.");
         }
 
+        if (options.MaxToolResultBytes < ExternalMcpToolResultMapper.MinimumResultBytes)
+        {
+            failures.Add($"External MCP MaxToolResultBytes must be at least {ExternalMcpToolResultMapper.MinimumResultBytes}.");
+        }
+
+        if (options.MaxToolResultBytes > ExternalMcpOptions.MaximumToolResultBytes)
+        {
+            failures.Add($"External MCP MaxToolResultBytes cannot exceed {ExternalMcpOptions.MaximumToolResultBytes}.");
+        }
+
         if (options.RefreshInterval < TimeSpan.Zero)
         {
             failures.Add("External MCP RefreshInterval cannot be negative.");
@@ -47,10 +57,38 @@ internal sealed class ExternalMcpOptionsValidator : IValidateOptions<ExternalMcp
             {
                 failures.Add($"External MCP server '{server.Name}' tool call timeout must be positive.");
             }
+
+            ValidateSchemalessTools(server, failures);
         }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateSchemalessTools(
+        ExternalMcpServerOptions server,
+        ICollection<string> failures)
+    {
+        var allowedTools = server.AllowedTools.ToHashSet(StringComparer.Ordinal);
+        var schemalessTools = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var toolName in server.SchemalessTools)
+        {
+            if (string.IsNullOrWhiteSpace(toolName))
+            {
+                failures.Add($"External MCP server '{server.Name}' schemaless tool names cannot be blank.");
+                continue;
+            }
+
+            if (!schemalessTools.Add(toolName))
+            {
+                failures.Add($"External MCP server '{server.Name}' schemaless tool '{toolName}' is duplicated.");
+            }
+
+            if (allowedTools.Count > 0 && !allowedTools.Contains(toolName))
+            {
+                failures.Add($"External MCP server '{server.Name}' schemaless tool '{toolName}' must be in AllowedTools.");
+            }
+        }
     }
 }

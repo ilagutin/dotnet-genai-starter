@@ -29,10 +29,19 @@ Application handlers see this identity through `IUserContext` and `IBackgroundUs
 
 - `server_info`: returns host version and active service identity details.
 - `rag_answer`: answers a question with existing permission-aware RAG retrieval. It preserves the normal no-context fallback, citation behavior and access filters before prompt construction.
-- `get_usage`: returns tenant-scoped AI request usage totals with the same Application usage rules as other hosts.
+- `get_usage`: returns AI request usage totals with the same Application usage rules as other hosts.
 - `get_current_user_profile`: calls the governed Agentic tool use case for the built-in safe profile tool and writes a row to `genai.tool_audit_logs`.
 
 There is no generic `execute_tool_by_name`, `run_tool` or registry executor exposed through MCP. `list_documents` is not exposed because the starter kit does not currently have a read-only user document list use case.
+
+`get_usage` authenticates the active service identity before checking roles or the date range.
+Non-admin identities require a nonblank user and tenant. Omitted or blank user/tenant filters use
+that identity; explicit mismatches are forbidden using case-sensitive comparison. Authenticated
+admins (case-insensitive role name) may query aggregate or cross-scope totals. Reversed date ranges
+remain validation errors and equal dates are allowed. Denials never query usage storage and become
+`McpException` errors with the `get_usage failed:` prefix. REST maps the same policy to 401 for
+unauthenticated/incomplete non-admin identity and 403 for scope mismatch. The local configured
+identity is shared by callers of that host; this is not per-caller remote authentication.
 
 ## Approval Limitation
 
@@ -63,6 +72,7 @@ Configuration lives under `GenAIPlatform:ExternalMcp:Servers`:
           "Arguments": [ "-y", "@modelcontextprotocol/server-everything" ],
           "WorkingDirectory": null,
           "AllowedTools": [ "echo" ],
+          "SchemalessTools": [],
           "ConnectTimeoutSeconds": 10,
           "ToolCallTimeoutSeconds": 30
         }
@@ -72,23 +82,45 @@ Configuration lives under `GenAIPlatform:ExternalMcp:Servers`:
 }
 ```
 
-The `Servers` list is the server allow-list: only configured, enabled servers are considered. `AllowedTools` is an optional per-server tool allow-list. When `AllowedTools` is empty, all tools reported by that enabled server are wrapped; when it is populated, only matching original external tool names are exposed to the agentic registry.
+The `Servers` list is the server allow-list: only configured, enabled servers are considered. `AllowedTools` is an optional per-server tool allow-list. When `AllowedTools` is empty, all tools reported by that enabled server are considered; when it is populated, only exact case-sensitive matching original external tool names can be exposed to the agentic registry.
 
-Connection lifecycle is controlled at the `ExternalMcp` level. `ConnectOnStartup` (default `true`) runs a startup warmup; set it to `false` to connect on demand instead. `MaxParallelConnects` (default `4`) bounds how many servers connect concurrently so one slow or hung server cannot delay the others, while connect order never changes the deterministic tool listing. `RefreshInterval` (default one minute, `00:00:00` to disable) is a background pass that re-attempts servers which are not currently available and lists their tools; already-available servers are left untouched. Startup is non-blocking: the warmup and recovery run in the background, so an unreachable server never delays host startup.
+External tools without an input schema are omitted by default. A server may opt in an exact case-sensitive original name through `SchemalessTools`; that narrow exception synthesizes an object-only planning schema, remains subject to `AllowedTools`, and is still approval-required. Blank or duplicate schemaless entries fail configuration validation. When `AllowedTools` is non-empty, every schemaless entry must be an exact member of it, so case mismatches and invalid subsets fail closed. A present malformed or unsupported schema is never converted into a schemaless exception.
 
-External tool definitions are treated as untrusted input. Descriptions are sanitized and length-limited before they can enter a model prompt. Tool argument payloads are passed through JSON round-trip conversion at the adapter boundary so nested objects and arrays are preserved.
+Connection lifecycle is controlled at the `ExternalMcp` level. `ConnectOnStartup` (default `true`) runs a startup warmup; set it to `false` to connect on demand instead. `MaxParallelConnects` (default `4`) bounds how many servers connect concurrently so one slow or hung server cannot delay the others, while connect order never changes the deterministic tool listing. `RefreshInterval` (default one minute, `00:00:00` to disable) is a background pass that re-attempts servers which are not currently available and lists their tools; already-available servers are left untouched. Startup is non-blocking: the warmup and recovery run in the background, so an unreachable server never delays host startup. One hosted wrapper is the shutdown owner for the single non-disposable manager. Shutdown rejects new work, lifetime-cancels background/connect/call work, observes cleanup and disposes racing connections once. A canceled host stop token bounds only its wait; later async disposal still observes completion. Lifecycle logs use a separate deterministic, sanitized server-identity projection capped at 64 characters; this does not change canonical snapshot or configured server identity.
+
+External tool definitions are treated as untrusted input. Descriptions are sanitized and length-limited before they can enter a model prompt. Present schemas are preserved rather than replaced, and the Application validator evaluates the captured schema before semantic normalization, approval or an MCP client call. It uses explicit Draft 2020-12, 64 KiB schema and argument limits, depth 32, at most 256 schema nodes, no non-fragment references, and no `pattern` or `patternProperties` at schema locations. Property and definition names remain ordinary names, and literal `const`, `enum` and `examples` data remains opaque to keyword restrictions. Local fragment references, including `$defs` references, remain supported and their reached schema targets are inspected. No network resolver is installed. Tool argument payloads that pass validation are then passed through JSON round-trip conversion at the adapter boundary so nested objects and arrays are preserved.
 
 ## External Tool Governance Guarantees
 
 The external MCP adapter keeps governance in the platform:
 
 - Snapshot at connect: tool name, description and input schema are captured when the server connects.
-- Snapshot provenance: the snapshot hash becomes the backend-owned tool schema version and is written to tool audit provenance. The model-proposed schema version does not control external-tool audit provenance.
+- Snapshot provenance: the snapshot hash covers the schema plus whether it was synthesized by the schemaless exception. It becomes the backend-owned tool schema version and is written to tool audit provenance. The model-proposed schema version does not control external-tool audit provenance.
 - Prefixed names: external tools are exposed as provider-safe `mcp_<server>_<tool>` names after ASCII sanitization and length limiting.
 - Approval by default: every external MCP tool is registered as approval-required, regardless of how the external server describes itself.
 - Backend allow-list: only configured servers and allowed tools can appear in the agentic registry.
-- Fail closed/degrade: unavailable or timed-out servers produce no available tools or failed tool results rather than bypassing policy or crashing the agentic loop. A server that is unavailable at startup recovers on the next background refresh pass (or an explicit refresh); a connection that drops after a tool was listed is re-established on the next call to that tool.
+- Fail closed/degrade: unavailable servers produce no available tools or failed tool results. Connection failure before dispatch returns `mcp_server_unavailable`; caller cancellation before dispatch propagates without calling the client. After dispatch starts, a transport exception, timeout or shutdown cancellation returns `mcp_tool_outcome_unknown`, because the remote operation may already have completed. A server that is unavailable at startup recovers on the next background refresh pass (or an explicit refresh).
+- No automatic replay: an uncertain call is never repeated by the connection manager. Its broken connection is removed and disposed. A later independent request can reconnect and execute its own call; background or explicit refresh can also recover availability, but never replay the pending operation. Failure to reconnect remains `mcp_server_unavailable` with no tool dispatch.
 - Audit path: executed, approval-required, rejected and failed external tool calls go through the same tool audit mechanism as built-in Agentic tools.
+
+`MaxToolResultBytes` defaults to 32768 bytes (32 KiB) and must be configured from 23 bytes through 1048576 bytes (1 MiB). The upper bound keeps the result contract bounded even under configuration mistakes, while the lower bound ensures the authored omission object always fits. The adapter maps only MCP `Content` and `StructuredContent` to provider-neutral JSON; SDK root and content-block metadata are excluded while fields inside structured business data, including a field named `meta`, are preserved. Exact-limit JSON remains available to the execution response and next model step. Oversized JSON is replaced by a small valid omission object with exact source/returned UTF-8 byte counts and a truncation marker, never a partial JSON prefix. Size limiting is not content redaction.
+
+External MCP durable audit is a separate metadata-only boundary selected explicitly by the wrapper, not inferred from the `mcp_` name. Argument values, returned text/structured content and raw exception messages are omitted for success, remote error and non-execution paths. Existing identity, schema, validation, policy, approval, execution and error-code fields remain. Built-in audit content is unchanged. Historical rows are not rewritten and may contain content recorded before this boundary. Full rendered prompt logging is disabled by default; MCP SDK wire logging is suppressed, and lifecycle diagnostics contain only bounded sanitized server identity and exception type.
+
+Caller cancellation after dispatch follows the same uncertainty rule. The governed executor first awaits the metadata-only audit write with `error_code=mcp_tool_outcome_unknown` and then propagates cancellation. Unknown outcomes have null durable `output` and `error_message`, because no confirmed response or measured response size exists. Audit failure is not reported as successful execution.
+
+`Failed` tool execution and `ToolFailed` chat status describe a locally unconfirmed completion; they do not prove remote failure or rollback. Without caller cancellation, an unknown outcome stops the loop, skips remaining proposed tools and prevents another model step. Operators should use the audit identity, tool-call id and correlation id to reconcile the operation with the remote system before authorizing another request. This starter kit provides neither exactly-once execution nor remote idempotency or automatic reconciliation. Retrying an operation without checking its remote state can duplicate its effects.
+
+The wrapper and its validation schema are frozen for an agentic chat session. A later mutation of a listed descriptor cannot change that session's validation contract or audit snapshot hash. This is not remote attestation: reconnecting to a server does not re-list or prove that its implementation still matches the captured schema.
+
+Exceptions swallowed by the tool wrapper emit warning 4001,
+`ExternalMcpToolExecutionFailed`, including cancellation not requested by the
+caller. Its only data fields are sanitized `ServerName` and `ToolName` (each
+capped at 64 ASCII characters) and `ExceptionType`. It receives no exception
+object, raw exception message, arguments, result or schema. Caller cancellation
+preserves the propagation and post-dispatch audit rules above without this
+warning. Transport failures already converted to unknown outcomes remain covered
+by connection-manager lifecycle diagnostics. Logging does not trigger replay.
 
 This starter-kit release does not claim production-ready remote MCP authentication, secret storage or enterprise connector management. External stdio server configuration is a local/sample adapter pattern; production credential handling and remote multi-tenant MCP are future work.
 
@@ -120,7 +152,7 @@ Example `claude_desktop_config.json` entry:
     "genai-platform": {
       "command": "dotnet",
       "args": [
-        "E:\\git_repo\\dotnet-genai-starter\\src\\GenAIPlatform.Mcp\\bin\\Debug\\net10.0\\GenAIPlatform.Mcp.dll"
+        "C:\\path\\to\\your\\checkout\\src\\GenAIPlatform.Mcp\\bin\\Debug\\net10.0\\GenAIPlatform.Mcp.dll"
       ],
       "env": {
         "ConnectionStrings__GenAIPlatform": "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"

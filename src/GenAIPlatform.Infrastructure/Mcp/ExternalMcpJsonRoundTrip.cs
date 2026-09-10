@@ -25,13 +25,18 @@ internal static class ExternalMcpJsonRoundTrip
             SerializerOptions) ?? new Dictionary<string, object?>();
     }
 
-    public static JsonElement CloneObjectSchema(JsonElement schema)
+    public static JsonElement? CloneSchema(JsonElement? schema)
     {
-        if (schema.ValueKind == JsonValueKind.Object)
+        if (schema is { ValueKind: not JsonValueKind.Undefined and not JsonValueKind.Null } value)
         {
-            return JsonSerializer.Deserialize<JsonElement>(schema.GetRawText(), SerializerOptions).Clone();
+            return JsonSerializer.Deserialize<JsonElement>(value.GetRawText(), SerializerOptions).Clone();
         }
 
+        return null;
+    }
+
+    public static JsonElement SchemalessObjectSchema()
+    {
         return JsonSerializer.SerializeToElement(new { type = "object" }, SerializerOptions);
     }
 

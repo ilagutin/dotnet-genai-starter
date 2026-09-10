@@ -1,5 +1,5 @@
-using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Core.Configuration;
+using GenAIPlatform.Application.Core.Dispatching;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Core.Health;

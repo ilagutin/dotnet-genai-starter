@@ -2,13 +2,16 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Knowledge.Documents;
+using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Documents;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -17,7 +20,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace GenAIPlatform.IntegrationTests;
 
-public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory)
+public sealed partial class DocumentEndpointTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
     [Fact]
@@ -27,9 +30,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
@@ -74,8 +77,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
-                services.AddSingleton<IDocumentIngestionRepository, FakeDocumentRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
+                services.AddSingleton<IDocumentMetadataRepository, FakeDocumentRepository>();
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
         using var client = uploadFactory.CreateClient(new WebApplicationFactoryClientOptions
@@ -97,9 +100,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             }));
@@ -134,9 +137,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             });
@@ -166,9 +169,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, LimitThrowingDocumentStorage>();
             }));
@@ -203,9 +206,9 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDocumentStorage>();
-                services.RemoveAll<IDocumentIngestionRepository>();
+                services.RemoveAll<IDocumentMetadataRepository>();
                 services.AddSingleton<FakeDocumentRepository>();
-                services.AddSingleton<IDocumentIngestionRepository>(
+                services.AddSingleton<IDocumentMetadataRepository>(
                     serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
                 services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
             });
@@ -228,297 +231,32 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     }
 
     [Theory]
-    [InlineData("omitted")]
-    [InlineData("valid")]
-    [InlineData("duplicate")]
-    public async Task RagChat_MapsDocumentFiltersToRetrievalQuery(string filterShape)
+    [InlineData("bad-request", 413, 1, 8, 413)]
+    [InlineData("bad-request", 400, 1, 8, 500)]
+    [InlineData("invalid-data", 0, 9, 8, 413)]
+    [InlineData("invalid-data", 0, 8, 8, 400)]
+    public async Task UploadDocument_MapsOnlyTypedMultipartLimitFailures(
+        string exceptionKind, int exceptionStatus, int contentLength, long multipartLimit, int expectedStatus)
     {
-        var documentId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        using var ragFactory = CreateRagFactory();
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
+        const long maxUploadBytes = 23;
+        Exception exception = exceptionKind == "bad-request"
+            ? new BadHttpRequestException("synthetic parser failure", exceptionStatus)
+            : new InvalidDataException("Multipart body length limit was exceeded");
+        using var uploadFactory = CreateThrowingFormFactory(exception, multipartLimit, maxUploadBytes);
+        using var client = uploadFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
         });
-        object body = filterShape switch
+        using var content = new ByteArrayContent(new byte[contentLength]);
+        content.Headers.ContentType = new MediaTypeHeaderValue("multipart/form-data");
+        var response = await client.PostAsync("/api/v1/documents", content);
+        Assert.Equal((HttpStatusCode)expectedStatus, response.StatusCode);
+        Assert.Equal(0, uploadFactory.Services.GetRequiredService<FakeDocumentRepository>().CreateDocumentCalls);
+        var body = await response.Content.ReadAsStringAsync();
+        if (expectedStatus != 500)
         {
-            "valid" => (object)new
-            {
-                message = "Use this document.",
-                documentIds = new[] { documentId }
-            },
-            "duplicate" => (object)new
-            {
-                message = "Use this document.",
-                documentIds = new[] { documentId, documentId }
-            },
-            _ => new
-            {
-                message = "Use available documents."
-            }
-        };
-
-        var response = await client.PostAsJsonAsync("/api/v1/chat/rag", body);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var searchStore = ragFactory.Services.GetRequiredService<CapturingRagVectorSearchStore>();
-        Assert.NotNull(searchStore.Query);
-        if (filterShape == "omitted")
-        {
-            Assert.Empty(searchStore.Query.DocumentIds);
+            Assert.Contains(expectedStatus == 413 ? "23 bytes or fewer" : "multipart/form-data is invalid", body);
         }
-        else
-        {
-            Assert.Equal([documentId], searchStore.Query.DocumentIds);
-        }
-    }
-
-    [Fact]
-    public async Task RagChat_RejectsEmptyGuidDocumentIdFilterBeforeEmbeddingOrSearch()
-    {
-        using var ragFactory = CreateRagFactory();
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "Use this document.",
-                documentIds = new[] { Guid.Empty }
-            });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var searchStore = ragFactory.Services.GetRequiredService<CapturingRagVectorSearchStore>();
-        Assert.Equal(0, embeddingClient.Calls);
-        Assert.Null(searchStore.Query);
-    }
-
-    [Theory]
-    [InlineData("empty")]
-    [InlineData("null")]
-    public async Task RagChat_RejectsExplicitEmptyOrNullDocumentFilterBeforeEmbeddingOrSearch(
-        string filterShape)
-    {
-        using var ragFactory = CreateRagFactory();
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-        object body = filterShape switch
-        {
-            "empty" => (object)new
-            {
-                message = "Use selected documents.",
-                documentIds = Array.Empty<Guid>()
-            },
-            "null" => (object)new
-            {
-                message = "Use selected documents.",
-                documentIds = (Guid[]?)null
-            },
-            _ => throw new InvalidOperationException($"Unknown filter shape '{filterShape}'.")
-        };
-
-        var response = await client.PostAsJsonAsync("/api/v1/chat/rag", body);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var bodyText = await response.Content.ReadAsStringAsync();
-        Assert.Contains("DocumentIds must be omitted or contain at least one id.", bodyText);
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var searchStore = ragFactory.Services.GetRequiredService<CapturingRagVectorSearchStore>();
-        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
-        Assert.Equal(0, embeddingClient.Calls);
-        Assert.Null(searchStore.Query);
-        Assert.Equal(0, modelClient.Calls);
-    }
-
-    [Fact]
-    public async Task RagChat_RejectsQuestionOverEmbeddingLimitBeforeEmbeddingOrSearch()
-    {
-        using var ragFactory = CreateRagFactory(
-            configurationValues: new Dictionary<string, string?>
-            {
-                ["GenAIPlatform:Embeddings:MaxInputCharacters"] = "12",
-                ["GenAIPlatform:DocumentIngestion:ChunkMaxCharacters"] = "10",
-                ["GenAIPlatform:DocumentIngestion:ChunkOverlapCharacters"] = "0",
-                ["GenAIPlatform:ModelGateway:MaxInputMessageCharacters"] = "100"
-            });
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "This question is longer than twelve characters."
-            });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("RAG message must be 12 characters or fewer.", body);
-
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var searchStore = ragFactory.Services.GetRequiredService<CapturingRagVectorSearchStore>();
-        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
-        Assert.Equal(0, embeddingClient.Calls);
-        Assert.Null(searchStore.Query);
-        Assert.Equal(0, modelClient.Calls);
-    }
-
-    [Fact]
-    public async Task RagChat_DoesNotExposeRetrievalFailureDetailOrCallModel()
-    {
-        using var ragFactory = CreateRagFactory(configureServices: services =>
-        {
-            services.RemoveAll<IRagVectorSearchStore>();
-            services.AddSingleton<IRagVectorSearchStore, ThrowingRagVectorSearchStore>();
-        });
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "Trigger retrieval failure."
-            });
-
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The retrieval store could not complete the request.", body);
-        Assert.Contains("retrieval_unavailable", body);
-        Assert.DoesNotContain("raw postgres detail", body);
-
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
-        Assert.Equal(1, embeddingClient.Calls);
-        Assert.Equal(0, modelClient.Calls);
-    }
-
-    [Fact]
-    public async Task RagChat_DoesNotExposeMalformedRetrievalConnectionStringOrCallModel()
-    {
-        using var ragFactory = CreateRagFactory(
-            configurationValues: new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:GenAIPlatform"] = "Host=localhost;Port=not-a-number;Username=genai;Password=secret",
-                ["GenAIPlatform:Postgres:ConnectionStringName"] = "GenAIPlatform"
-            },
-            useConfiguredVectorSearchStore: true);
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "Trigger malformed retrieval configuration."
-            });
-
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The retrieval store could not complete the request.", body);
-        Assert.Contains("retrieval_unavailable", body);
-        Assert.DoesNotContain("not-a-number", body);
-        Assert.DoesNotContain("secret", body);
-        Assert.DoesNotContain("genai", body);
-        Assert.DoesNotContain("Host=", body);
-
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
-        Assert.Equal(0, embeddingClient.Calls);
-        Assert.Equal(0, modelClient.Calls);
-    }
-
-    [Fact]
-    public async Task RagChat_DoesNotExposeEmbeddingFailureDetailOrCallRetrievalOrModel()
-    {
-        using var ragFactory = CreateRagFactory(configureServices: services =>
-        {
-            services.RemoveAll<IEmbeddingClient>();
-            services.AddSingleton<ThrowingEmbeddingClient>();
-            services.AddSingleton<IEmbeddingClient>(
-                serviceProvider => serviceProvider.GetRequiredService<ThrowingEmbeddingClient>());
-        });
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "Trigger embedding failure."
-            });
-
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The upstream embedding provider request failed.", body);
-        Assert.Contains("provider_error", body);
-        Assert.DoesNotContain("raw embedding detail", body);
-        Assert.DoesNotContain("sk-test", body);
-        Assert.DoesNotContain("raw_embedding_code", body);
-        Assert.DoesNotContain("raw-embedding-code", body);
-
-        var embeddingClient = ragFactory.Services.GetRequiredService<ThrowingEmbeddingClient>();
-        var searchStore = ragFactory.Services.GetRequiredService<CapturingRagVectorSearchStore>();
-        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
-        Assert.Equal(1, embeddingClient.Calls);
-        Assert.Null(searchStore.Query);
-        Assert.Equal(0, modelClient.Calls);
-    }
-
-    [Fact]
-    public async Task RagChat_DoesNotExposeModelFailureDetailAfterRetrieval()
-    {
-        using var ragFactory = CreateRagFactory(configureServices: services =>
-        {
-            services.RemoveAll<IRagVectorSearchStore>();
-            services.AddSingleton<ReturningRagVectorSearchStore>();
-            services.AddSingleton<IRagVectorSearchStore>(
-                serviceProvider => serviceProvider.GetRequiredService<ReturningRagVectorSearchStore>());
-            services.RemoveAll<IAiModelClient>();
-            services.AddSingleton<ThrowingRagModelClient>();
-            services.AddSingleton<IAiModelClient>(
-                serviceProvider => serviceProvider.GetRequiredService<ThrowingRagModelClient>());
-        });
-        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/chat/rag",
-            new
-            {
-                message = "Trigger model failure after retrieval."
-            });
-
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The upstream model provider request failed.", body);
-        Assert.Contains("provider_error", body);
-        Assert.DoesNotContain("raw model detail", body);
-        Assert.DoesNotContain("sk-test", body);
-        Assert.DoesNotContain("raw_model_code", body);
-        Assert.DoesNotContain("raw-model-code", body);
-
-        var embeddingClient = ragFactory.Services.GetRequiredService<CapturingEmbeddingClient>();
-        var searchStore = ragFactory.Services.GetRequiredService<ReturningRagVectorSearchStore>();
-        var modelClient = ragFactory.Services.GetRequiredService<ThrowingRagModelClient>();
-        Assert.Equal(1, embeddingClient.Calls);
-        Assert.Equal(1, searchStore.Calls);
-        Assert.Equal(1, modelClient.Calls);
     }
 
     private WebApplicationFactory<Program> CreateRagFactory(
@@ -561,6 +299,32 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         });
     }
 
+    private WebApplicationFactory<Program> CreateThrowingFormFactory(
+        Exception exception,
+        long multipartLimit,
+        long maxUploadBytes)
+    {
+        return factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["GenAIPlatform:DocumentIngestion:MaxUploadBytes"] = maxUploadBytes.ToString()
+                }));
+            builder.ConfigureTestServices(services =>
+            {
+                services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = multipartLimit);
+                services.AddSingleton<IStartupFilter>(new ThrowingFormFeatureStartupFilter(exception));
+                services.RemoveAll<IDocumentStorage>();
+                services.RemoveAll<IDocumentMetadataRepository>();
+                services.AddSingleton<FakeDocumentRepository>();
+                services.AddSingleton<IDocumentMetadataRepository>(
+                    serviceProvider => serviceProvider.GetRequiredService<FakeDocumentRepository>());
+                services.AddSingleton<IDocumentStorage, FakeDocumentStorage>();
+            });
+        });
+    }
+
     private sealed record UploadDocumentResponse(
         Guid DocumentId,
         string Title,
@@ -586,7 +350,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         string? FailureReason,
         DateTimeOffset UpdatedAtUtc);
 
-    private sealed class FakeDocumentRepository : IDocumentIngestionRepository
+    private sealed class FakeDocumentRepository : IDocumentMetadataRepository
     {
         private Document? document;
         private IndexingJob? indexingJob;
@@ -606,17 +370,13 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task<bool> DocumentExistsAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(document?.Id == documentId);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(document?.Id == documentId);
 
         public Task<Document?> GetDocumentForIndexingAsync(
             Guid documentId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(document?.Id == documentId ? document : null);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult(document?.Id == documentId ? document : null);
 
         public Task<DocumentIndexingStatusSnapshot?> GetDocumentStatusAsync(
             Guid documentId,
@@ -636,56 +396,6 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
                 new DocumentIndexingStatusSnapshot(document, indexingJob, ChunkCount: 0));
         }
 
-        public Task<IndexingJob?> ClaimNextPendingJobAsync(
-            string workerId,
-            TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IndexingJob?>(null);
-        }
-
-        public Task<int> MarkExpiredIndexingJobsFailedAsync(
-            TimeSpan processingLeaseDuration,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(0);
-        }
-
-        public Task<bool> RenewProcessingLeaseAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> ReplaceChunksAndCompleteIndexingAsync(
-            Document document,
-            IndexingJob indexingJob,
-            IReadOnlyCollection<DocumentChunk> chunks,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> MarkIndexingFailedAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            string failureReason,
-            bool retry,
-            TimeSpan retryDelay,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> ReleaseProcessingJobAndRefundAttemptAsync(
-            Guid documentId,
-            IndexingJob indexingJob,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     private sealed class FakeDocumentStorage : IDocumentStorage
@@ -712,10 +422,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task CommitAsync(
             StoredDocument document,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<Stream> OpenReadAsync(
             string storagePath,
@@ -727,10 +435,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class LimitThrowingDocumentStorage : IDocumentStorage
@@ -761,10 +467,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
         public Task DeleteAsync(
             string storagePath,
-            CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class CapturingEmbeddingClient : IEmbeddingClient
@@ -789,10 +493,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     {
         public RagVectorSearchQuery? Query { get; private set; }
 
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
@@ -805,10 +507,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
 
     private sealed class ThrowingRagVectorSearchStore : IRagVectorSearchStore
     {
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
@@ -825,10 +525,8 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
     {
         public int Calls { get; private set; }
 
-        public Task CheckReadinessAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
             RagVectorSearchQuery query,
@@ -850,7 +548,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         }
     }
 
-    private sealed class ThrowingEmbeddingClient : IEmbeddingClient
+    private sealed class ThrowingEmbeddingClient(string errorCode) : IEmbeddingClient
     {
         public int Calls { get; private set; }
 
@@ -862,7 +560,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             throw new EmbeddingClientException(
                 "fake-embedding-provider",
                 "raw embedding detail with sk-test secret",
-                errorCode: "raw_embedding_code",
+                errorCode: errorCode,
                 statusCode: HttpStatusCode.BadGateway,
                 providerErrorCode: "raw-embedding-code");
         }
@@ -886,7 +584,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
         }
     }
 
-    private sealed class ThrowingRagModelClient : IAiModelClient
+    private sealed class ThrowingRagModelClient(string errorCode) : IAiModelClient
     {
         public int Calls { get; private set; }
 
@@ -898,7 +596,7 @@ public sealed class DocumentEndpointTests(WebApplicationFactory<Program> factory
             throw new AiModelException(
                 "fake-model-provider",
                 "raw model detail with sk-test secret",
-                errorCode: "raw_model_code",
+                errorCode: errorCode,
                 statusCode: HttpStatusCode.BadGateway,
                 providerErrorCode: "raw-model-code");
         }

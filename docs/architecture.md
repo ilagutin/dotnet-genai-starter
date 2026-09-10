@@ -19,6 +19,11 @@ flowchart LR
     Evaluations --> Knowledge
     Evaluations --> Generation
     Evaluations --> EvalApp
+    Mcp["GenAIPlatform.Mcp (local stdio host)"] --> Core
+    Mcp --> Knowledge
+    Mcp --> Generation
+    Mcp --> Agentic
+    Mcp --> Usage
     Generation --> Knowledge
     Agentic --> Generation
     EvalApp --> Knowledge
@@ -52,6 +57,7 @@ flowchart LR
 - `GenAIPlatform.Application.Usage`: usage and cost reporting use case plus the usage repository contract.
 - `GenAIPlatform.Domain`: simple domain records, enums and workflow state types shared by Application use cases. Documents, Prompts, Evaluations, Agentic and Observability concepts live here when they are domain concepts rather than application orchestration.
 - `GenAIPlatform.Infrastructure`: PostgreSQL persistence adapters, pgvector retrieval, durable document storage cleanup queue, model clients, embedding clients, file storage, sanitized AI request logging, pricing/cost estimation and other adapters. Document ingestion and retrieval currently use raw Npgsql; EF Core remains optional for later persistence work.
+- `GenAIPlatform.Mcp`: local stdio MCP host that composes Core, Knowledge, Generation, Agentic and Usage with Infrastructure, then exposes bounded tools over existing Application use cases. It is distinct from Infrastructure's external MCP client, which supplies governed Agentic tool sources and is not a generic executor exposed through the local host.
 - `GenAIPlatform.Worker`: DB-backed background indexing jobs and orphaned document storage cleanup processing.
 - `GenAIPlatform.Evaluations`: CLI runner for evaluation workflows.
 

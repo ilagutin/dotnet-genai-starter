@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Infrastructure.Configuration;
 using GenAIPlatform.Infrastructure.Embeddings.OpenAi.Dtos;

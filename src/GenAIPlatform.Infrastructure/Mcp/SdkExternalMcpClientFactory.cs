@@ -1,9 +1,10 @@
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 
 namespace GenAIPlatform.Infrastructure.Mcp;
 
-internal sealed class SdkExternalMcpClientFactory(ILoggerFactory loggerFactory) : IExternalMcpClientFactory
+internal sealed class SdkExternalMcpClientFactory(IOptions<ExternalMcpOptions> options) : IExternalMcpClientFactory
 {
     public async Task<IExternalMcpClient> CreateAsync(
         ExternalMcpServerOptions server,
@@ -18,13 +19,13 @@ internal sealed class SdkExternalMcpClientFactory(ILoggerFactory loggerFactory) 
             InheritEnvironmentVariables = false,
             EnvironmentVariables = StdioClientTransportOptions.GetDefaultEnvironmentVariables()
         };
-        var transport = new StdioClientTransport(transportOptions, loggerFactory);
+        var transport = new StdioClientTransport(transportOptions, NullLoggerFactory.Instance);
         var client = await McpClient.CreateAsync(
             transport,
             clientOptions: null,
-            loggerFactory,
+            NullLoggerFactory.Instance,
             cancellationToken);
 
-        return new SdkExternalMcpClient(client);
+        return new SdkExternalMcpClient(client, options.Value.MaxToolResultBytes);
     }
 }

@@ -1,7 +1,5 @@
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Infrastructure.Observability;
+using GenAIPlatform.Domain.Observability;
 
 namespace GenAIPlatform.Infrastructure.Observability.Pricing;
 

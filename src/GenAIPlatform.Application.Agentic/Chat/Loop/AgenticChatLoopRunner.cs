@@ -1,6 +1,6 @@
-using GenAIPlatform.Domain.Agentic;
-using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Core.ModelClients;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Domain.Agentic;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 
@@ -37,18 +37,28 @@ internal sealed class AgenticChatLoopRunner(
                     session,
                     state.Messages,
                     timeout.Token);
-                await state.ApplyModelResponseAsync(
+                var usageFailure = await state.ApplyModelResponseAsync(
                     response,
                     budgetGuard,
                     timeout.Token);
 
                 var proposedToolCalls = response.ProposedToolCalls ?? [];
+                if (usageFailure is { } usageStatus)
+                {
+                    var code = usageStatus == AgenticChatStatus.UsageUnavailable ? "usage_unavailable" : "invalid_usage";
+                    const string reason = "Agent loop stopped because usable token usage was not available for the current response.";
+                    await AuditSkippedToolsAsync(session, state, proposedToolCalls, code, reason, preserveStopReason: true);
+                    return state.CreateResponse(usageStatus, reason, step);
+                }
+
                 if (budgetGuard.IsExceeded(state.TotalTokens, state.EstimatedCost, session.Options))
                 {
-                    await AuditBudgetSkippedToolsAsync(
+                    await AuditSkippedToolsAsync(
                         session,
                         state,
-                        proposedToolCalls);
+                        proposedToolCalls,
+                        "budget_exceeded",
+                        "The configured token or cost budget was reached before tool execution.");
                     return state.CreateResponse(
                         AgenticChatStatus.BudgetExceeded,
                         "Agent loop stopped after reaching the configured token or cost budget.",
@@ -120,10 +130,13 @@ internal sealed class AgenticChatLoopRunner(
             cancellationToken);
     }
 
-    private async Task AuditBudgetSkippedToolsAsync(
+    private async Task AuditSkippedToolsAsync(
         AgenticChatSession session,
         AgenticChatLoopState state,
-        IReadOnlyList<AiToolCall> proposedToolCalls)
+        IReadOnlyList<AiToolCall> proposedToolCalls,
+        string errorCode,
+        string reason,
+        bool preserveStopReason = false)
     {
         if (proposedToolCalls.Count == 0)
         {
@@ -135,7 +148,8 @@ internal sealed class AgenticChatLoopRunner(
             session,
             proposedToolCalls,
             ToolExecutionStatus.NotExecuted,
-            "budget_exceeded",
-            "The configured token or cost budget was exceeded before tool execution.");
+            errorCode,
+            reason,
+            preserveStopReason);
     }
 }

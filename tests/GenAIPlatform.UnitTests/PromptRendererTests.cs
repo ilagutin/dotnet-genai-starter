@@ -1,7 +1,6 @@
-using GenAIPlatform.Application.Generation.Prompts.Templates;
 using GenAIPlatform.Application.Generation.Prompts.Rendering;
+using GenAIPlatform.Application.Generation.Prompts.Templates;
 using GenAIPlatform.Domain.Prompts;
-using GenAIPlatform.Application.Generation.Prompts;
 
 namespace GenAIPlatform.UnitTests;
 

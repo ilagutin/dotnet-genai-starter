@@ -1,20 +1,17 @@
-using GenAIPlatform.Infrastructure.Observability;
-using GenAIPlatform.Application.Usage.GetUsage;
-using GenAIPlatform.Application.Evaluations.StartRun;
-using GenAIPlatform.Application.Agentic.Tools;
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Domain.Agentic;
-using GenAIPlatform.Domain.Evaluations;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Application.Core.Security;
-using GenAIPlatform.Application.Agentic;
 using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Evaluations;
+using GenAIPlatform.Application.Evaluations.StartRun;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Knowledge.Retrieval;
+using GenAIPlatform.Application.Usage.GetUsage;
+using GenAIPlatform.Domain.Agentic;
+using GenAIPlatform.Domain.Evaluations;
+using GenAIPlatform.Domain.Observability;
+using GenAIPlatform.Infrastructure.Observability;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -24,7 +21,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace GenAIPlatform.IntegrationTests;
 
-public sealed class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
+public sealed partial class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
     [Fact]
@@ -439,295 +436,6 @@ public sealed class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
         Assert.DoesNotContain("provider leaked detail", body);
     }
 
-    [Fact]
-    public async Task UsageEndpoint_AppliesFiltersAndReturnsSummary()
-    {
-        using var usageFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IUsageRepository>();
-                services.AddSingleton<CapturingUsageRepository>();
-                services.AddSingleton<IUsageRepository>(
-                    serviceProvider => serviceProvider.GetRequiredService<CapturingUsageRepository>());
-            }));
-        using var client = usageFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            "/api/v1/usage?from=2026-05-01T00:00:00Z&to=2026-05-15T00:00:00Z&userId=alice&tenantId=tenant-a&model=mock-chat");
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<UsageSummaryResponse>();
-        Assert.NotNull(body);
-        Assert.Equal(2, body.Requests);
-        Assert.Equal(120, body.InputTokens);
-        Assert.Equal(30, body.OutputTokens);
-        Assert.Equal(0.0042m, body.EstimatedCost);
-
-        var repository = usageFactory.Services.GetRequiredService<CapturingUsageRepository>();
-        Assert.NotNull(repository.Query);
-        Assert.Equal("alice", repository.Query.UserId);
-        Assert.Equal("tenant-a", repository.Query.TenantId);
-        Assert.Equal("mock-chat", repository.Query.Model);
-        Assert.Equal(DateTimeOffset.Parse("2026-05-01T00:00:00Z"), repository.Query.FromUtc);
-        Assert.Equal(DateTimeOffset.Parse("2026-05-15T00:00:00Z"), repository.Query.ToUtc);
-    }
-
-    [Fact]
-    public async Task UsageEndpoint_RejectsNonAdminCrossTenantFilters()
-    {
-        using var usageFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IUsageRepository>();
-                services.AddSingleton<CapturingUsageRepository>();
-                services.AddSingleton<IUsageRepository>(
-                    serviceProvider => serviceProvider.GetRequiredService<CapturingUsageRepository>());
-            }));
-        using var client = usageFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            "/api/v1/usage?tenantId=tenant-b&userId=alice");
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var repository = usageFactory.Services.GetRequiredService<CapturingUsageRepository>();
-        Assert.Null(repository.Query);
-    }
-
-    [Fact]
-    public async Task EvaluationEndpoints_RunAndReturnSummaryThroughApplicationService()
-    {
-        using var evaluationFactory = CreateEvaluationFactory();
-        using var client = evaluationFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/evaluations/runs")
-        {
-            Content = JsonContent.Create(new
-            {
-                correlationId = "api-evaluation-test"
-            })
-        };
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<EvaluationRunResponse>();
-        Assert.NotNull(body);
-        Assert.Equal("Succeeded", body.Status);
-        var runId = body.RunId;
-
-        using var summaryRequest = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"/api/v1/evaluations/runs/{runId}/summary");
-        summaryRequest.Headers.Add("X-Demo-User-Id", "alice");
-        summaryRequest.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-        var summaryResponse = await client.SendAsync(summaryRequest);
-        Assert.Equal(HttpStatusCode.OK, summaryResponse.StatusCode);
-
-        var summary = await summaryResponse.Content.ReadFromJsonAsync<EvaluationSummaryResponse>();
-
-        Assert.NotNull(summary);
-        Assert.Equal(runId, summary.RunId);
-        Assert.Equal(1, summary.TotalCases);
-        Assert.Equal(1, summary.PassedCases);
-        Assert.Equal(0, summary.FailedCaseCount);
-
-        var repository = evaluationFactory.Services.GetRequiredService<CapturingEvaluationRunRepository>();
-        var capturedRun = Assert.Single(repository.Runs.Values);
-        Assert.Equal("mock-chat-evaluation", capturedRun.Run.Model);
-        using var modelSettings = JsonDocument.Parse(capturedRun.Run.ModelSettings);
-        Assert.Equal(0, modelSettings.RootElement.GetProperty("temperature").GetDouble());
-        Assert.Equal(256, modelSettings.RootElement.GetProperty("maxOutputTokens").GetInt32());
-    }
-
-    [Fact]
-    public async Task EvaluationEndpoints_RejectInvalidModelOptionsWithBadRequest()
-    {
-        using var evaluationFactory = CreateEvaluationFactory();
-        using var client = evaluationFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/evaluations/runs",
-            new
-            {
-                model = "unapproved-model"
-            });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task EvaluationCliRunner_UsesSameApplicationServiceBehaviorAsApi()
-    {
-        using var evaluationFactory = CreateEvaluationFactory();
-        using var client = evaluationFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/evaluations/runs")
-        {
-            Content = JsonContent.Create(new { correlationId = "api-shared-eval" })
-        };
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-        var apiResponse = await client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-        using var scope = evaluationFactory.Services.CreateScope();
-        var exitCode = await EvaluationCliRunner.RunAsync(
-            scope.ServiceProvider.GetRequiredService<GenAIPlatform.Application.Core.Dispatching.IApplicationDispatcher>(),
-            TextWriter.Null,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(0, exitCode);
-        var repository = evaluationFactory.Services.GetRequiredService<CapturingEvaluationRunRepository>();
-        Assert.Equal(2, repository.Runs.Count);
-        Assert.All(repository.Runs.Values, run => Assert.Equal("Succeeded", run.Run.Status));
-    }
-
-    [Fact]
-    public async Task AgenticChat_ExecutesSafeToolAndReturnsAuditResult()
-    {
-        using var agenticFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IToolAuditLogRepository>();
-                services.AddSingleton<CapturingToolAuditLogRepository>();
-                services.AddSingleton<IToolAuditLogRepository>(
-                    serviceProvider => serviceProvider.GetRequiredService<CapturingToolAuditLogRepository>());
-            }));
-        using var client = agenticFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat/agentic")
-        {
-            Content = JsonContent.Create(new
-            {
-                message = "Use my profile.",
-                correlationId = "api-agentic-test"
-            })
-        };
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<AgenticChatResponseBody>();
-        Assert.NotNull(body);
-        Assert.Equal("Succeeded", body.Status);
-        Assert.Equal(1, body.ToolCalls);
-        var toolResult = Assert.Single(body.ToolResults);
-        Assert.Equal("GetCurrentUserProfile", toolResult.ToolName);
-        Assert.Equal("Allowed", toolResult.PolicyDecision);
-        Assert.Equal("Succeeded", toolResult.ExecutionStatus);
-
-        var audit = agenticFactory.Services.GetRequiredService<CapturingToolAuditLogRepository>();
-        var entry = Assert.Single(audit.Entries);
-        Assert.Equal("alice", entry.UserId);
-        Assert.Equal("tenant-a", entry.TenantId);
-        Assert.Equal("api-agentic-test", entry.CorrelationId);
-        Assert.Equal("Succeeded", entry.ExecutionStatus);
-    }
-
-    [Fact]
-    public async Task AgenticChat_DoesNotTriggerToolCallFromIncidentalPromptWrapperWords()
-    {
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat/agentic")
-        {
-            Content = JsonContent.Create(new
-            {
-                message = "Summarize wrapper text that mentions profile, ticket, DraftEmail and DeleteDocument.",
-                correlationId = "api-agentic-wrapper-words"
-            })
-        };
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<AgenticChatResponseBody>();
-        Assert.NotNull(body);
-        Assert.Equal("Succeeded", body.Status);
-        Assert.Equal(0, body.ToolCalls);
-        Assert.Empty(body.ToolResults);
-    }
-
-    [Theory]
-    [InlineData("Create a support ticket.", "Succeeded", "CreateSupportTicket", "Allowed", "Succeeded", false)]
-    [InlineData("Draft an email.", "ApprovalRequired", "DraftEmail", "RequiresApproval", "ApprovalRequired", false)]
-    [InlineData("Delete a document.", "ToolRejected", "DeleteDocument", "Forbidden", "Rejected", false)]
-    public async Task AgenticChat_MockDemoRequestsStillTriggerExpectedTools(
-        string message,
-        string expectedStatus,
-        string expectedToolName,
-        string expectedPolicyDecision,
-        string expectedExecutionStatus,
-        bool approveRiskyTools)
-    {
-        using var agenticFactory = CreateAgenticFactoryWithCapturedAudit();
-        using var client = agenticFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat/agentic")
-        {
-            Content = JsonContent.Create(new
-            {
-                message,
-                correlationId = $"api-agentic-{expectedToolName}",
-                approveRiskyTools
-            })
-        };
-        request.Headers.Add("X-Demo-User-Id", "alice");
-        request.Headers.Add("X-Demo-Tenant-Id", "tenant-a");
-
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<AgenticChatResponseBody>();
-        Assert.NotNull(body);
-        Assert.Equal(expectedStatus, body.Status);
-        Assert.Equal(1, body.ToolCalls);
-        var toolResult = Assert.Single(body.ToolResults);
-        Assert.Equal(expectedToolName, toolResult.ToolName);
-        Assert.Equal(expectedPolicyDecision, toolResult.PolicyDecision);
-        Assert.Equal(expectedExecutionStatus, toolResult.ExecutionStatus);
-    }
-
     private sealed record HealthResponse(
         string Status,
         string Component,
@@ -842,12 +550,14 @@ public sealed class ApiV1EndpointTests(WebApplicationFactory<Program> factory)
 
     private sealed class CapturingUsageRepository : IUsageRepository
     {
+        public int Calls { get; private set; }
         public UsageQuery? Query { get; private set; }
 
         public Task<UsageSummary> GetUsageAsync(
             UsageQuery query,
             CancellationToken cancellationToken)
         {
+            Calls++;
             Query = query;
             return Task.FromResult(new UsageSummary(
                 Requests: 2,

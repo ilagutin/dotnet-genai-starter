@@ -1,8 +1,8 @@
+using System.Text.Json;
 using GenAIPlatform.Application.Agentic.Tools.Execution;
 using GenAIPlatform.Application.Core.Dispatching;
 using GenAIPlatform.Application.Core.Security;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace GenAIPlatform.Application.Agentic.Tools.Execute;
 

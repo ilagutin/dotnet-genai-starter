@@ -1,6 +1,5 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
+using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Domain.Documents;
 using Microsoft.Extensions.Logging;
 

@@ -27,8 +27,9 @@ internal static class ExternalMcpSetup
             serviceProvider => serviceProvider.GetRequiredService<ExternalMcpConnectionManager>());
         if (HasEnabledServers(configuration))
         {
-            services.AddHostedService(
-                serviceProvider => serviceProvider.GetRequiredService<ExternalMcpConnectionManager>());
+            services.AddSingleton<ExternalMcpHostedService>();
+            services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService>(
+                serviceProvider => serviceProvider.GetRequiredService<ExternalMcpHostedService>());
         }
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IExternalAgentToolSource, ExternalMcpAgentToolSource>());

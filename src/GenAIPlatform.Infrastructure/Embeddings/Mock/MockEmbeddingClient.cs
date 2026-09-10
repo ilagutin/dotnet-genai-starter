@@ -1,8 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using GenAIPlatform.Application.Knowledge.Embeddings;
 using GenAIPlatform.Application.Core.Embeddings;
-using GenAIPlatform.Application.Core.Configuration;
+using GenAIPlatform.Application.Knowledge.Embeddings;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Infrastructure.Embeddings.Mock;

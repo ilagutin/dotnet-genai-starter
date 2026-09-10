@@ -1,7 +1,6 @@
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Application.Core.Configuration;
-using GenAIPlatform.Infrastructure.Observability;
+using GenAIPlatform.Application.Core.Security;
+using GenAIPlatform.Domain.Observability;
 using GenAIPlatform.Infrastructure.Observability.Pricing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

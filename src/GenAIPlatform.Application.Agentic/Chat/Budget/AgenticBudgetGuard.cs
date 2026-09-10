@@ -1,25 +1,35 @@
 using GenAIPlatform.Application.Core.ModelClients;
+using Microsoft.Extensions.Logging;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
 
-internal sealed class AgenticBudgetGuard(
+internal sealed partial class AgenticBudgetGuard(
     IAgenticCostEstimator costEstimator,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<AgenticBudgetGuard> logger)
 {
     public bool IsExceeded(
         int totalTokens,
         decimal estimatedCost,
         AgenticChatOptions options)
     {
-        return totalTokens > options.MaxTotalTokens ||
-               estimatedCost > options.MaxEstimatedCost;
+        return totalTokens >= options.MaxTotalTokens ||
+               estimatedCost >= options.MaxEstimatedCost;
     }
 
     public async Task<decimal> EstimateResponseCostAsync(
         AiModelResponse response,
+        int totalTokens,
         AgenticChatOptions options,
+        AgenticBudgetFallbackState fallbackState,
         CancellationToken cancellationToken)
     {
+        if (response.Usage is not { InputTokens: not null, OutputTokens: not null })
+        {
+            LogFallback(fallbackState, "usage_components_unavailable", null);
+            return EstimateFallbackCost(totalTokens, options);
+        }
+
         try
         {
             var estimate = await costEstimator.EstimateAsync(
@@ -36,21 +46,48 @@ internal sealed class AgenticBudgetGuard(
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
-            return EstimateFallbackCost(response.Usage?.TotalTokens, options);
+            LogFallback(fallbackState, "estimator_failed", exception.GetType().Name);
+            return EstimateFallbackCost(totalTokens, options);
         }
 
-        return EstimateFallbackCost(response.Usage?.TotalTokens, options);
+        LogFallback(fallbackState, "pricing_unavailable", null);
+        return EstimateFallbackCost(totalTokens, options);
     }
 
+    private void LogFallback(AgenticBudgetFallbackState state, string reason, string? exceptionType)
+    {
+        if (state.TryMark())
+        {
+            LogFallbackUsed(logger, state.ConversationId, state.CorrelationId, reason, exceptionType);
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 4002,
+        EventName = "AgenticBudgetFallbackUsed",
+        Level = LogLevel.Warning,
+        Message = "Agentic budget fallback used for conversation {ConversationId}, correlation {CorrelationId}: {Reason} ({ExceptionType})")]
+    private static partial void LogFallbackUsed(
+        ILogger logger,
+        Guid conversationId,
+        string correlationId,
+        string reason,
+        string? exceptionType);
+
     private static decimal EstimateFallbackCost(
-        int? totalTokens,
+        int totalTokens,
         AgenticChatOptions options)
     {
-        return Math.Round(
-            (totalTokens ?? 0) / 1000m * options.EstimatedCostPerThousandTokens,
-            8,
-            MidpointRounding.AwayFromZero);
+        try
+        {
+            return Math.Round(totalTokens / 1000m * options.EstimatedCostPerThousandTokens,
+                8, MidpointRounding.AwayFromZero);
+        }
+        catch (OverflowException)
+        {
+            return decimal.MaxValue;
+        }
     }
 }

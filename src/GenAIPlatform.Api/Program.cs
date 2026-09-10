@@ -13,8 +13,8 @@ builder.Services.AddApplicationCore(builder.Configuration);
 builder.Services.AddKnowledgeApplication(builder.Configuration);
 builder.Services.AddGenerationApplication(builder.Configuration);
 builder.Services.AddAgenticApplication(builder.Configuration);
-builder.Services.AddEvaluationsApplication(builder.Configuration);
-builder.Services.AddUsageApplication(builder.Configuration);
+builder.Services.AddEvaluationsApplication();
+builder.Services.AddUsageApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApi(builder.Configuration, builder.Environment);
 

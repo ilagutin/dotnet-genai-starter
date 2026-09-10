@@ -1,5 +1,4 @@
 using GenAIPlatform.Application.Knowledge.Embeddings;
-using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 

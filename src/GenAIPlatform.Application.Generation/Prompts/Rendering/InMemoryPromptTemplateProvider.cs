@@ -1,7 +1,6 @@
-using GenAIPlatform.Domain.Prompts;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GenAIPlatform.Domain.Prompts;
 
 namespace GenAIPlatform.Application.Generation.Prompts.Rendering;
 

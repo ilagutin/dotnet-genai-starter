@@ -1,12 +1,12 @@
-using GenAIPlatform.Application.Knowledge.Documents;
-using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Embedding;
+using GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs.Failure;
 using GenAIPlatform.Domain.Documents;
 
 namespace GenAIPlatform.Application.Knowledge.Documents.ProcessIndexingJobs;
 
 internal sealed class IndexingJobProcessor(
-    IDocumentIngestionRepository repository,
+    IDocumentMetadataRepository metadataRepository,
+    IIndexingJobRepository jobRepository,
     IndexingChunkEmbeddingWorkflow embeddingWorkflow,
     IndexingJobFailureRecorder failureRecorder)
 {
@@ -16,7 +16,7 @@ internal sealed class IndexingJobProcessor(
         IndexingAttemptState attemptState,
         CancellationToken cancellationToken)
     {
-        var document = await repository.GetDocumentForIndexingAsync(
+        var document = await metadataRepository.GetDocumentForIndexingAsync(
             indexingJob.DocumentId,
             cancellationToken);
 
@@ -34,7 +34,7 @@ internal sealed class IndexingJobProcessor(
             attemptState,
             cancellationToken);
 
-        var completed = await repository.ReplaceChunksAndCompleteIndexingAsync(
+        var completed = await jobRepository.ReplaceChunksAndCompleteIndexingAsync(
             document,
             indexingJob,
             chunks,

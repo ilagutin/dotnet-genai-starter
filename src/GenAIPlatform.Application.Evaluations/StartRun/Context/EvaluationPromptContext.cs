@@ -1,4 +1,3 @@
-using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Domain.Observability;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun.Context;

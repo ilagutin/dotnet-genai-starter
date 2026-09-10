@@ -1,12 +1,13 @@
+using System.Text.Json;
+using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Domain.Agentic;
 using GenAIPlatform.Infrastructure.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace GenAIPlatform.UnitTests;
 
-public sealed class ExternalMcpAgentToolSourceTests
+public sealed partial class ExternalMcpAgentToolSourceTests
 {
     [Fact]
     public void BuildPrefixedToolName_UsesProviderSafeAsciiAndStableMaxLength()
@@ -36,7 +37,7 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         await manager.RefreshAsync(CancellationToken.None);
 
-        var tools = new ExternalMcpAgentToolSource(manager).GetAvailableTools();
+        var tools = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools();
 
         Assert.Equal(["mcp_beta_server_a_tool", "mcp_beta_server_zeta", "mcp_alpha_allowed"],
             tools.Select(static tool => tool.Definition.Name).ToArray());
@@ -59,7 +60,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.SetClient("Server", client);
         var manager = CreateManager(factory, Server("Server"));
         await manager.RefreshAsync(CancellationToken.None);
-        var source = new ExternalMcpAgentToolSource(manager);
+        var source = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance);
         var first = Assert.Single(source.GetAvailableTools()).Definition;
 
         client.Tools = [Tool("echo", "changed definition", Schema("changed"))];
@@ -68,6 +69,120 @@ public sealed class ExternalMcpAgentToolSourceTests
         Assert.Equal("first definition", second.Description);
         Assert.Equal(first.SchemaVersion, second.SchemaVersion);
         Assert.Contains("first", second.InputSchema.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_OmitsMissingSchemaUnlessExactSchemalessExceptionIsConfigured()
+    {
+        var omittedClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var omittedFactory = new FakeExternalMcpClientFactory();
+        omittedFactory.SetClient("Server", omittedClient);
+        var omittedManager = CreateManager(omittedFactory, Server("Server", allowedTools: ["echo"]));
+        await omittedManager.RefreshAsync(CancellationToken.None);
+
+        Assert.Empty(new ExternalMcpAgentToolSource(omittedManager, NullLoggerFactory.Instance).GetAvailableTools());
+
+        var allowedClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var allowedFactory = new FakeExternalMcpClientFactory();
+        allowedFactory.SetClient("Server", allowedClient);
+        var allowedManager = CreateManager(
+            allowedFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await allowedManager.RefreshAsync(CancellationToken.None);
+
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(allowedManager, NullLoggerFactory.Instance).GetAvailableTools());
+        Assert.Equal("object", tool.Definition.InputSchema.GetProperty("type").GetString());
+        Assert.True(tool.Policy.RequiresApproval);
+        Assert.True(Assert.Single(Assert.Single(allowedManager.GetSnapshots()).Tools).IsSchemaless);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_SchemalessFlagParticipatesInSnapshotHashAndNeverMasksPresentSchema()
+    {
+        var missingClient = FakeExternalMcpClient.WithTools(
+            new ExternalMcpToolDescriptor("echo", "Echo.", InputSchema: null));
+        var missingFactory = new FakeExternalMcpClientFactory();
+        missingFactory.SetClient("Server", missingClient);
+        var missingManager = CreateManager(
+            missingFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await missingManager.RefreshAsync(CancellationToken.None);
+        var schemaless = Assert.Single(Assert.Single(missingManager.GetSnapshots()).Tools);
+
+        var presentClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", "{\"type\":\"object\"}"));
+        var presentFactory = new FakeExternalMcpClientFactory();
+        presentFactory.SetClient("Server", presentClient);
+        var presentManager = CreateManager(
+            presentFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await presentManager.RefreshAsync(CancellationToken.None);
+        var present = Assert.Single(Assert.Single(presentManager.GetSnapshots()).Tools);
+
+        Assert.True(schemaless.IsSchemaless);
+        Assert.False(present.IsSchemaless);
+        Assert.NotEqual(schemaless.SnapshotHash, present.SnapshotHash);
+
+        var malformedClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", "[]"));
+        var malformedFactory = new FakeExternalMcpClientFactory();
+        malformedFactory.SetClient("Server", malformedClient);
+        var malformedManager = CreateManager(
+            malformedFactory,
+            Server("Server", allowedTools: ["echo"], schemalessTools: ["echo"]));
+        await malformedManager.RefreshAsync(CancellationToken.None);
+        var malformed = Assert.Single(Assert.Single(malformedManager.GetSnapshots()).Tools);
+
+        Assert.False(malformed.IsSchemaless);
+        Assert.Equal(JsonValueKind.Array, malformed.InputSchema.ValueKind);
+    }
+
+    [Fact]
+    public void Validate_RejectsBlankDuplicateCaseMismatchedAndInvalidSubsetSchemalessConfiguration()
+    {
+        var servers = new[]
+        {
+            Server("Blank", schemalessTools: [" "]),
+            Server("Duplicate", schemalessTools: ["echo", "echo"]),
+            Server("CaseMismatch", allowedTools: ["Echo"], schemalessTools: ["echo"]),
+            Server("Outside", allowedTools: ["lookup"], schemalessTools: ["echo"])
+        };
+        var validator = new ExternalMcpOptionsValidator();
+
+        foreach (var server in servers)
+        {
+            var result = validator.Validate(null, new ExternalMcpOptions { Servers = [server] });
+            Assert.True(result.Failed);
+        }
+    }
+
+    [Fact]
+    public void Validate_EnforcesBoundedResultLimitRange()
+    {
+        var validator = new ExternalMcpOptionsValidator();
+
+        var belowMinimum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpToolResultMapper.MinimumResultBytes - 1
+        });
+        var minimum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpToolResultMapper.MinimumResultBytes
+        });
+        var maximum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpOptions.MaximumToolResultBytes
+        });
+        var aboveMaximum = validator.Validate(null, new ExternalMcpOptions
+        {
+            MaxToolResultBytes = ExternalMcpOptions.MaximumToolResultBytes + 1
+        });
+
+        Assert.True(belowMinimum.Failed);
+        Assert.Same(Microsoft.Extensions.Options.ValidateOptionsResult.Success, minimum);
+        Assert.Same(Microsoft.Extensions.Options.ValidateOptionsResult.Success, maximum);
+        Assert.True(aboveMaximum.Failed);
+        Assert.Equal(32 * 1024, new ExternalMcpOptions().MaxToolResultBytes);
     }
 
     [Fact]
@@ -82,7 +197,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         await manager.RefreshAsync(CancellationToken.None);
 
         Assert.True(client.Disposed);
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
     }
 
     [Fact]
@@ -122,7 +237,7 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         await manager.RefreshAsync(CancellationToken.None);
 
-        var tools = new ExternalMcpAgentToolSource(manager)
+        var tools = new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance)
             .GetAvailableTools()
             .Select(static tool => tool.Definition.Name)
             .ToArray();
@@ -139,11 +254,11 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManager(factory, Server("Server"));
 
         await manager.RefreshAsync(CancellationToken.None);
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
 
         await manager.RefreshAsync(CancellationToken.None);
 
-        Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         Assert.Equal(2, factory.CreateCount("Server"));
     }
 
@@ -158,7 +273,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         await manager.RefreshAsync(CancellationToken.None);
         await manager.RefreshAsync(CancellationToken.None);
 
-        Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         Assert.Equal(1, factory.CreateCount("Server"));
     }
 
@@ -173,7 +288,7 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         await manager.RefreshAsync(CancellationToken.None);
 
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         Assert.Equal(0, factory.CreateCount("Server"));
     }
 
@@ -186,10 +301,10 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: true, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
         await manager.BackgroundActivity;
 
-        Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         Assert.Equal(1, factory.CreateCount("Server"));
     }
 
@@ -202,10 +317,10 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: false, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
         await manager.BackgroundActivity;
 
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         Assert.Equal(0, factory.CreateCount("Server"));
     }
 
@@ -224,14 +339,14 @@ public sealed class ExternalMcpAgentToolSourceTests
         var manager = CreateManagerCore(factory, connectOnStartup: true, refreshInterval: TimeSpan.Zero,
             new AlwaysConnectMcpPolicy(), Server("Server"));
 
-        await manager.StartAsync(CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StartAsync(CancellationToken.None);
 
         Assert.False(manager.BackgroundActivity.IsCompleted);
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
 
         release.SetResult();
         await manager.BackgroundActivity;
-        Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
     }
 
     [Fact]
@@ -246,7 +361,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.SetClient("Server", client);
         var manager = CreateManager(factory, Server("Server"));
         await manager.RefreshAsync(CancellationToken.None);
-        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         using var arguments = JsonDocument.Parse("""
         {
           "text": "hello",
@@ -268,7 +383,7 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsFailedOnTimeoutAndMarksServerUnavailable()
+    public async Task ExecuteAsync_ReturnsUnknownOnTimeoutAndMarksServerUnavailable()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("slow", "Slow tool.", Schema()));
         client.CallAsync = async (_, _, cancellationToken) =>
@@ -280,18 +395,21 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.SetClient("Server", client);
         var manager = CreateManager(factory, Server("Server", timeoutSeconds: 0.01));
         await manager.RefreshAsync(CancellationToken.None);
-        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
 
         var timeout = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
 
         Assert.Equal(ToolExecutionStatus.Failed, timeout.Status);
-        Assert.Equal("mcp_tool_timeout", timeout.ErrorCode);
+        Assert.Equal("mcp_tool_outcome_unknown", timeout.ErrorCode);
+        Assert.Null(timeout.PayloadMetadata);
+        Assert.Equal(1, client.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
         Assert.True(client.Disposed);
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsFailedOnCallerCancellation()
+    public async Task ExecuteAsync_PreCanceledCallerDoesNotDispatchOrInvalidateConnection()
     {
         var client = FakeExternalMcpClient.WithTools(Tool("slow", "Slow tool.", Schema()));
         client.CallAsync = async (_, _, cancellationToken) =>
@@ -303,14 +421,16 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.SetClient("Server", client);
         var manager = CreateManager(factory, Server("Server", timeoutSeconds: 30));
         await manager.RefreshAsync(CancellationToken.None);
-        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
         using var canceled = new CancellationTokenSource();
         await canceled.CancelAsync();
 
-        var cancellation = await tool.ExecuteAsync(EmptyObject(), canceled.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ExecuteAsync(EmptyObject(), canceled.Token));
 
-        Assert.Equal(ToolExecutionStatus.Failed, cancellation.Status);
-        Assert.Equal("mcp_tool_canceled", cancellation.ErrorCode);
+        Assert.Equal(0, client.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
+        Assert.False(client.Disposed);
+        Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
     }
 
     [Fact]
@@ -320,7 +440,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var unavailableManager = CreateManager(unavailableFactory, Server("Missing"));
         await unavailableManager.RefreshAsync(CancellationToken.None);
 
-        Assert.Empty(new ExternalMcpAgentToolSource(unavailableManager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(unavailableManager, NullLoggerFactory.Instance).GetAvailableTools());
 
         var client = FakeExternalMcpClient.WithTools(Tool("fails", "Fails remotely.", Schema()));
         client.CallResult = new ExternalMcpToolCallResult(
@@ -331,7 +451,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.SetClient("Server", client);
         var manager = CreateManager(factory, Server("Server"));
         await manager.RefreshAsync(CancellationToken.None);
-        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
 
         var result = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
 
@@ -341,10 +461,15 @@ public sealed class ExternalMcpAgentToolSourceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReconnectsAfterFailedCallAndStopDisposesConnections()
+    public async Task ExecuteAsync_DoesNotReplayLostResponseAndReconnectsOnlyForLaterRequest()
     {
+        var remoteEffects = 0;
         var firstClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
-        firstClient.CallAsync = (_, _, _) => throw new InvalidOperationException("server died");
+        firstClient.CallAsync = (_, _, _) =>
+        {
+            remoteEffects++;
+            throw new InvalidOperationException("private remote response lost");
+        };
         var secondClient = FakeExternalMcpClient.WithTools(Tool("echo", "Echoes input.", Schema()));
         secondClient.CallResult = new ExternalMcpToolCallResult(
             IsError: false,
@@ -355,17 +480,64 @@ public sealed class ExternalMcpAgentToolSourceTests
         factory.EnqueueClient("Server", secondClient);
         var manager = CreateManager(factory, Server("Server"));
         await manager.RefreshAsync(CancellationToken.None);
-        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
 
         var result = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
-        await manager.StopAsync(CancellationToken.None);
 
-        Assert.Equal(ToolExecutionStatus.Succeeded, result.Status);
-        Assert.True(result.Output.GetProperty("reconnected").GetBoolean());
+        Assert.Equal(ToolExecutionStatus.Failed, result.Status);
+        Assert.Equal("mcp_tool_outcome_unknown", result.ErrorCode);
+        Assert.DoesNotContain("private remote", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Null(result.PayloadMetadata);
+        Assert.Equal(1, remoteEffects);
+        Assert.Equal(1, firstClient.CallCount);
+        Assert.Equal(0, secondClient.CallCount);
+        Assert.Equal(1, factory.CreateCount("Server"));
+        Assert.True(firstClient.Disposed);
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
+
+        var laterResult = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        await new ExternalMcpHostedService(manager).StopAsync(CancellationToken.None);
+
+        Assert.Equal(ToolExecutionStatus.Succeeded, laterResult.Status);
+        Assert.True(laterResult.Output.GetProperty("reconnected").GetBoolean());
+        Assert.Equal(1, remoteEffects);
+        Assert.Equal(1, secondClient.CallCount);
         Assert.Equal(2, factory.CreateCount("Server"));
         Assert.True(firstClient.Disposed);
         Assert.True(secondClient.Disposed);
-        Assert.Empty(new ExternalMcpAgentToolSource(manager).GetAvailableTools());
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LaterReconnectFailureIsUnavailableWithoutDispatchAndCanRecover()
+    {
+        var first = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", Schema()));
+        first.CallAsync = (_, _, _) => throw new InvalidOperationException("response lost");
+        var recovered = FakeExternalMcpClient.WithTools(Tool("echo", "Echo.", Schema()));
+        var factory = new FakeExternalMcpClientFactory();
+        factory.EnqueueClient("Server", first);
+        factory.EnqueueFailure("Server");
+        factory.EnqueueClient("Server", recovered);
+        var manager = CreateManager(factory, Server("Server"));
+        await manager.RefreshAsync(CancellationToken.None);
+        var tool = Assert.Single(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
+
+        var unknown = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal("mcp_tool_outcome_unknown", unknown.ErrorCode);
+        Assert.Equal(1, factory.CreateCount("Server"));
+
+        var unavailable = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal("mcp_server_unavailable", unavailable.ErrorCode);
+        Assert.Equal(2, factory.CreateCount("Server"));
+        Assert.Equal(1, first.CallCount);
+        Assert.Equal(0, recovered.CallCount);
+        Assert.Empty(new ExternalMcpAgentToolSource(manager, NullLoggerFactory.Instance).GetAvailableTools());
+
+        var success = await tool.ExecuteAsync(EmptyObject(), CancellationToken.None);
+        Assert.Equal(ToolExecutionStatus.Succeeded, success.Status);
+        Assert.Equal(3, factory.CreateCount("Server"));
+        Assert.Equal(1, recovered.CallCount);
+        await new ExternalMcpHostedService(manager).DisposeAsync();
     }
 
     [Fact]
@@ -384,7 +556,7 @@ public sealed class ExternalMcpAgentToolSourceTests
         var sdkArguments = ExternalMcpJsonRoundTrip.ToSdkArguments(document.RootElement);
 
         // The MCP SDK re-serializes these arguments via System.Text.Json. Assert the round-trip
-        // preserves nested shape and raw numeric tokens (no lossy double/long conversion) — a
+        // preserves nested shape and raw numeric tokens (no lossy double/long conversion) - a
         // hand-rolled JsonElement mapper would break this.
         var reserialized = JsonSerializer.SerializeToElement(sdkArguments);
         Assert.Equal("9007199254740993", reserialized.GetProperty("bigInt").GetRawText());
@@ -395,6 +567,19 @@ public sealed class ExternalMcpAgentToolSourceTests
         Assert.True(reserialized.GetProperty("nested").GetProperty("flags")[0].GetBoolean());
         Assert.Equal(JsonValueKind.Null, reserialized.GetProperty("nested").GetProperty("missing").ValueKind);
         Assert.Equal("hello", reserialized.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public void CloneSchema_PreservesMissingAndPresentMalformedSchemaWithoutSynthesis()
+    {
+        Assert.Null(ExternalMcpJsonRoundTrip.CloneSchema(default(JsonElement)));
+        Assert.Null(ExternalMcpJsonRoundTrip.CloneSchema(null));
+        using var malformed = JsonDocument.Parse("[]");
+
+        var clone = ExternalMcpJsonRoundTrip.CloneSchema(malformed.RootElement);
+
+        Assert.NotNull(clone);
+        Assert.Equal(JsonValueKind.Array, clone.Value.ValueKind);
     }
 
     private static ExternalMcpConnectionManager CreateManager(
@@ -427,6 +612,7 @@ public sealed class ExternalMcpAgentToolSourceTests
     private static ExternalMcpServerOptions Server(
         string name,
         IReadOnlyCollection<string>? allowedTools = null,
+        IReadOnlyCollection<string>? schemalessTools = null,
         double timeoutSeconds = 30)
     {
         return new ExternalMcpServerOptions
@@ -434,6 +620,7 @@ public sealed class ExternalMcpAgentToolSourceTests
             Name = name,
             Command = "fake",
             AllowedTools = allowedTools?.ToList() ?? [],
+            SchemalessTools = schemalessTools?.ToList() ?? [],
             ToolCallTimeoutSeconds = timeoutSeconds
         };
     }
@@ -470,6 +657,17 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         public void RecordConnectFailure(string serverName)
         {
+        }
+    }
+
+    private sealed class CapturingAuditRepository : IToolAuditLogRepository
+    {
+        public List<ToolAuditLogEntry> Entries { get; } = [];
+
+        public Task AddAsync(ToolAuditLogEntry entry, CancellationToken cancellationToken)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
         }
     }
 
@@ -537,6 +735,8 @@ public sealed class ExternalMcpAgentToolSourceTests
 
         public bool Disposed { get; private set; }
 
+        public int CallCount { get; private set; }
+
         public static FakeExternalMcpClient WithTools(params ExternalMcpToolDescriptor[] tools)
         {
             return new FakeExternalMcpClient { Tools = tools };
@@ -554,6 +754,7 @@ public sealed class ExternalMcpAgentToolSourceTests
             IReadOnlyDictionary<string, object?>? arguments,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             CapturedArguments = arguments;
             return CallAsync is null
                 ? Task.FromResult(CallResult)

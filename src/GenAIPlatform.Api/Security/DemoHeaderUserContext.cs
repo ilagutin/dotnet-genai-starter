@@ -1,6 +1,5 @@
 using GenAIPlatform.Api.Configuration;
 using GenAIPlatform.Application.Core.Security;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Api.Security;

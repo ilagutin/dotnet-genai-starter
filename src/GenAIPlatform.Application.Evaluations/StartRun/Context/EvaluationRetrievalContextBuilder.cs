@@ -1,13 +1,11 @@
-using GenAIPlatform.Application.Evaluations;
-using GenAIPlatform.Domain.Observability;
-using GenAIPlatform.Domain.Evaluations;
-using GenAIPlatform.Application.Knowledge.Embeddings;
-using GenAIPlatform.Application.Core.Embeddings;
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
-using GenAIPlatform.Application.Knowledge.Retrieval;
-using GenAIPlatform.Application.Generation.Chat;
 using System.Text;
+using GenAIPlatform.Application.Core.Embeddings;
+using GenAIPlatform.Application.Generation.Chat;
+using GenAIPlatform.Application.Generation.ModelGateway;
+using GenAIPlatform.Application.Knowledge.Embeddings;
+using GenAIPlatform.Application.Knowledge.Retrieval;
+using GenAIPlatform.Domain.Evaluations;
+using GenAIPlatform.Domain.Observability;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Evaluations.StartRun.Context;

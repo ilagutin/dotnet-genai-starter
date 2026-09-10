@@ -1,5 +1,5 @@
-using GenAIPlatform.Domain.Evaluations.Checks;
 using GenAIPlatform.Domain.Evaluations;
+using GenAIPlatform.Domain.Evaluations.Checks;
 
 namespace GenAIPlatform.UnitTests;
 

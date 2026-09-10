@@ -1,11 +1,10 @@
 using FluentValidation;
-using GenAIPlatform.Application.Evaluations.StartRun.Context;
-using GenAIPlatform.Application.Evaluations.StartRun.Cases;
-using GenAIPlatform.Application.Evaluations.StartRun;
-using GenAIPlatform.Domain.Evaluations.Dataset;
-using GenAIPlatform.Domain.Evaluations.Checks;
 using GenAIPlatform.Application.Core.Dispatching;
-using Microsoft.Extensions.Configuration;
+using GenAIPlatform.Application.Evaluations.StartRun;
+using GenAIPlatform.Application.Evaluations.StartRun.Cases;
+using GenAIPlatform.Application.Evaluations.StartRun.Context;
+using GenAIPlatform.Domain.Evaluations.Checks;
+using GenAIPlatform.Domain.Evaluations.Dataset;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -14,11 +13,8 @@ namespace GenAIPlatform.Application.Evaluations;
 public static class Setup
 {
     public static IServiceCollection AddEvaluationsApplication(
-        this IServiceCollection services,
-        IConfiguration configuration)
+        this IServiceCollection services)
     {
-        _ = configuration;
-
         services.AddValidatorsFromAssembly(typeof(Setup).Assembly, includeInternalTypes: true);
         services.TryAddScoped<StartEvaluationRunNormalizer>();
         services.TryAddScoped<EvaluationDatasetValidator>();

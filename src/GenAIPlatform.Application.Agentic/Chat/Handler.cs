@@ -1,8 +1,7 @@
 using GenAIPlatform.Application.Agentic.Tools;
 using GenAIPlatform.Application.Core.Dispatching;
-using GenAIPlatform.Application.Generation.ModelGateway;
-using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
+using GenAIPlatform.Application.Generation.ModelGateway;
 using Microsoft.Extensions.Options;
 
 namespace GenAIPlatform.Application.Agentic.Chat;
