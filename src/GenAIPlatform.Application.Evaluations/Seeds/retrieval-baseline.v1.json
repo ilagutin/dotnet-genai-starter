@@ -1,0 +1,636 @@
+{
+  "version": "retrieval-baseline-v1",
+  "tenantPrefix": "retrieval-baseline",
+  "gates": {
+    "minRecallAtK": 0.9,
+    "minNoMatchAccuracy": 1.0,
+    "k": 3
+  },
+  "corpus": [
+    {
+      "id": "doc-photosynthesis",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Photosynthesis Notes",
+      "fileName": "photosynthesis-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-photosynthesis-1",
+          "text": "Photosynthesis converts sunlight into chemical energy inside chloroplasts."
+        },
+        {
+          "id": "chunk-photosynthesis-2",
+          "text": "Chlorophyll pigments absorb photons that drive carbon fixation."
+        }
+      ]
+    },
+    {
+      "id": "doc-cellular-respiration",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Cellular Respiration Notes",
+      "fileName": "cellular-respiration-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-cellular-respiration-1",
+          "text": "Cellular respiration releases chemical energy from glucose inside mitochondria."
+        }
+      ]
+    },
+    {
+      "id": "doc-tide-forecasting",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Tide Forecasting Notes",
+      "fileName": "tide-forecasting-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-tide-forecasting-1",
+          "text": "Tide forecasting combines lunar gravity harmonics with coastal bathymetry."
+        }
+      ]
+    },
+    {
+      "id": "doc-buoy-telemetry",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Buoy Telemetry Notes",
+      "fileName": "buoy-telemetry-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-buoy-telemetry-1",
+          "text": "Buoy telemetry reports significant wave height from moored coastal sensors."
+        }
+      ]
+    },
+    {
+      "id": "doc-sourdough-starter",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Sourdough Starter Notes",
+      "fileName": "sourdough-starter-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-sourdough-starter-1",
+          "text": "Sourdough starter ferments flour, water, wild yeast, lactobacillus."
+        }
+      ]
+    },
+    {
+      "id": "doc-espresso-extraction",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Espresso Extraction Notes",
+      "fileName": "espresso-extraction-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-espresso-extraction-1",
+          "text": "Espresso extraction pushes pressurized water through finely ground roasted beans."
+        }
+      ]
+    },
+    {
+      "id": "doc-basalt-quarry",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-bob",
+      "accessLevel": "Private",
+      "version": 1,
+      "title": "Basalt Quarry Notes",
+      "fileName": "basalt-quarry-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-basalt-quarry-1",
+          "text": "Basalt quarry blasting schedules depend on columnar jointing and overburden depth."
+        }
+      ]
+    },
+    {
+      "id": "doc-alpine-glacier",
+      "tenantId": "retrieval-baseline-other",
+      "ownerUserId": "bench-carol",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Alpine Glacier Notes",
+      "fileName": "alpine-glacier-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-alpine-glacier-1",
+          "text": "Alpine glacier ablation stakes measure summer melt across accumulation zone."
+        }
+      ]
+    },
+    {
+      "id": "doc-lighthouse-optics",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 2,
+      "title": "Lighthouse Optics Notes",
+      "fileName": "lighthouse-optics-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-lighthouse-optics-current",
+          "text": "Lighthouse optics rotate fresnel panels that project timed flash character."
+        },
+        {
+          "id": "chunk-lighthouse-optics-legacy",
+          "text": "Keepers trimmed kerosene wicks before electrification.",
+          "documentVersion": 1
+        }
+      ]
+    },
+    {
+      "id": "doc-kiln-firing",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Kiln Firing Notes",
+      "fileName": "kiln-firing-notes.md",
+      "embeddingProvider": "mock-other",
+      "chunks": [
+        {
+          "id": "chunk-kiln-firing-1",
+          "text": "Kiln firing schedules ramp temperature slowly through quartz inversion."
+        }
+      ]
+    },
+    {
+      "id": "doc-anemometer-array",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Anemometer Array Notes",
+      "fileName": "anemometer-array-notes.md",
+      "embeddingModel": "mock-embedding-legacy",
+      "chunks": [
+        {
+          "id": "chunk-anemometer-array-1",
+          "text": "Anemometer array calibration compares cup rotation against sonic gusts."
+        }
+      ]
+    },
+    {
+      "id": "doc-permafrost-borehole",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Permafrost Borehole Notes",
+      "fileName": "permafrost-borehole-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-permafrost-borehole-1",
+          "text": "Permafrost borehole thermistors log ground temperature through active layer."
+        }
+      ]
+    },
+    {
+      "id": "doc-cave-survey",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Cave Survey Notes",
+      "fileName": "cave-survey-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-cave-survey-1",
+          "text": "Cave survey teams record azimuth, inclination and distance between station markers."
+        }
+      ]
+    },
+    {
+      "id": "doc-loom-weaving",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Loom Weaving Notes",
+      "fileName": "loom-weaving-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-loom-weaving-1",
+          "text": "Loom weaving interlaces warp threads with weft picks under controlled tension."
+        }
+      ]
+    },
+    {
+      "id": "doc-solar-inverter",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Solar Inverter Notes",
+      "fileName": "solar-inverter-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-solar-inverter-1",
+          "text": "Solar inverter firmware tracks maximum power point across panel string voltage."
+        }
+      ]
+    },
+    {
+      "id": "doc-beekeeping-hive",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Beekeeping Hive Notes",
+      "fileName": "beekeeping-hive-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-beekeeping-hive-1",
+          "text": "Beekeeping hive inspections check brood pattern, queen presence and mite load."
+        }
+      ]
+    },
+    {
+      "id": "doc-typeface-kerning",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Typeface Kerning Notes",
+      "fileName": "typeface-kerning-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-typeface-kerning-1",
+          "text": "Typeface kerning pairs adjust spacing between adjacent glyph outlines."
+        }
+      ]
+    },
+    {
+      "id": "doc-avalanche-forecast",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Avalanche Forecast Notes",
+      "fileName": "avalanche-forecast-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-avalanche-forecast-1",
+          "text": "Avalanche forecast bulletins grade slab instability across aspect and elevation bands."
+        }
+      ]
+    },
+    {
+      "id": "doc-harbor-dredging",
+      "tenantId": "retrieval-baseline",
+      "ownerUserId": "bench-alice",
+      "accessLevel": "TenantPublic",
+      "version": 1,
+      "title": "Harbor Dredging Notes",
+      "fileName": "harbor-dredging-notes.md",
+      "chunks": [
+        {
+          "id": "chunk-harbor-dredging-1",
+          "text": "Harbor dredging removes accumulated silt to maintain declared channel depth."
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-relevant-001",
+      "question": "How does photosynthesis convert sunlight into chemical energy?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-photosynthesis"],
+      "expectedChunkIds": ["chunk-photosynthesis-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-002",
+      "question": "Which pigments absorb photons that drive carbon fixation?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-photosynthesis"],
+      "expectedChunkIds": ["chunk-photosynthesis-2"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-003",
+      "question": "Which lunar gravity harmonics drive tide forecasting?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-tide-forecasting"],
+      "expectedChunkIds": ["chunk-tide-forecasting-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-004",
+      "question": "How does sourdough starter use flour, water, wild yeast?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-sourdough-starter"],
+      "expectedChunkIds": ["chunk-sourdough-starter-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-005",
+      "question": "Which thermistors log permafrost borehole temperature?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-permafrost-borehole"],
+      "expectedChunkIds": ["chunk-permafrost-borehole-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-006",
+      "question": "How do cave survey teams record azimuth and inclination?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-cave-survey"],
+      "expectedChunkIds": ["chunk-cave-survey-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-007",
+      "question": "How does solar inverter firmware track maximum power point?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-solar-inverter"],
+      "expectedChunkIds": ["chunk-solar-inverter-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-relevant-008",
+      "question": "Which beekeeping hive inspections check brood pattern?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "relevant",
+      "expectedDocumentIds": ["doc-beekeeping-hive"],
+      "expectedChunkIds": ["chunk-beekeeping-hive-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-distractor-001",
+      "question": "How does cellular respiration release chemical energy from glucose?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "distractor",
+      "expectedDocumentIds": ["doc-cellular-respiration"],
+      "expectedChunkIds": ["chunk-cellular-respiration-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-distractor-002",
+      "question": "Which moored coastal sensors report significant wave height?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "distractor",
+      "expectedDocumentIds": ["doc-buoy-telemetry"],
+      "expectedChunkIds": ["chunk-buoy-telemetry-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-distractor-003",
+      "question": "How does espresso extraction push pressurized water through ground beans?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "distractor",
+      "expectedDocumentIds": ["doc-espresso-extraction"],
+      "expectedChunkIds": ["chunk-espresso-extraction-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-distractor-004",
+      "question": "Which dredging removes silt to maintain channel depth?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "distractor",
+      "expectedDocumentIds": ["doc-harbor-dredging"],
+      "expectedChunkIds": ["chunk-harbor-dredging-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-paraphrase-001",
+      "question": "Explain sunlight conversion inside chloroplasts.",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "paraphrase",
+      "expectedDocumentIds": ["doc-photosynthesis"],
+      "expectedChunkIds": ["chunk-photosynthesis-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-paraphrase-002",
+      "question": "Describe warp threads and weft picks under tension.",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "paraphrase",
+      "expectedDocumentIds": ["doc-loom-weaving"],
+      "expectedChunkIds": ["chunk-loom-weaving-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-paraphrase-003",
+      "question": "Summarize slab instability grading across aspect bands.",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "paraphrase",
+      "expectedDocumentIds": ["doc-avalanche-forecast"],
+      "expectedChunkIds": ["chunk-avalanche-forecast-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-paraphrase-004",
+      "question": "Describe spacing adjustments between adjacent glyph outlines.",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "paraphrase",
+      "expectedDocumentIds": ["doc-typeface-kerning"],
+      "expectedChunkIds": ["chunk-typeface-kerning-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-paraphrase-005",
+      "question": "Summarize queen presence and mite load checks.",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "paraphrase",
+      "expectedDocumentIds": ["doc-beekeeping-hive"],
+      "expectedChunkIds": ["chunk-beekeeping-hive-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-no-match-001",
+      "question": "Which alloy resists saltwater corrosion?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "no-match",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-no-match-002",
+      "question": "How do referees review offside decisions?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "no-match",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-no-match-003",
+      "question": "What rituals mark harvest festivals?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "no-match",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-no-match-004",
+      "question": "Why did zeppelin airships lose commercial routes?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "no-match",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-no-match-005",
+      "question": "Who invented pinhole cameras?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "no-match",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-tenant-isolation-001",
+      "question": "How do ablation stakes measure alpine glacier melt?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "tenant-isolation",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-tenant-isolation-002",
+      "question": "What accumulation zone feeds summer glacier melt?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-bob",
+      "category": "tenant-isolation",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-tenant-isolation-003",
+      "question": "How do ablation stakes measure alpine glacier melt?",
+      "tenantId": "retrieval-baseline-other",
+      "userId": "bench-carol",
+      "category": "tenant-isolation",
+      "expectedDocumentIds": ["doc-alpine-glacier"],
+      "expectedChunkIds": ["chunk-alpine-glacier-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-private-ownership-001",
+      "question": "Which columnar jointing limits basalt quarry blasting schedules?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "private-ownership",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-private-ownership-002",
+      "question": "How deep sits overburden above columnar basalt?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-carol",
+      "category": "private-ownership",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-private-ownership-003",
+      "question": "Which columnar jointing limits basalt quarry blasting schedules?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-bob",
+      "category": "private-ownership",
+      "expectedDocumentIds": ["doc-basalt-quarry"],
+      "expectedChunkIds": ["chunk-basalt-quarry-1"],
+      "noMatch": false
+    },
+    {
+      "id": "q-document-version-001",
+      "question": "How do fresnel panels project timed flash character?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "document-version",
+      "expectedDocumentIds": ["doc-lighthouse-optics"],
+      "expectedChunkIds": ["chunk-lighthouse-optics-current"],
+      "noMatch": false
+    },
+    {
+      "id": "q-document-version-002",
+      "question": "Which lighthouse optics rotate fresnel panels?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "document-version",
+      "expectedDocumentIds": ["doc-lighthouse-optics"],
+      "expectedChunkIds": ["chunk-lighthouse-optics-current"],
+      "noMatch": false
+    },
+    {
+      "id": "q-document-version-003",
+      "question": "Who trimmed kerosene wicks before electrification?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "document-version",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-embedding-compatibility-001",
+      "question": "How slowly does kiln firing ramp through quartz inversion?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "embedding-compatibility",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-embedding-compatibility-002",
+      "question": "What temperature schedules protect kiln ware?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "embedding-compatibility",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    },
+    {
+      "id": "q-embedding-compatibility-003",
+      "question": "Which anemometer array calibration compares cup rotation against sonic gusts?",
+      "tenantId": "retrieval-baseline",
+      "userId": "bench-alice",
+      "category": "embedding-compatibility",
+      "expectedDocumentIds": [],
+      "noMatch": true
+    }
+  ]
+}

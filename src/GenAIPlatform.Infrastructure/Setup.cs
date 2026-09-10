@@ -3,6 +3,7 @@ using GenAIPlatform.Application.Core.Embeddings;
 using GenAIPlatform.Application.Core.ModelClients;
 using GenAIPlatform.Application.Core.Security;
 using GenAIPlatform.Application.Evaluations;
+using GenAIPlatform.Application.Evaluations.RetrievalBaseline;
 using GenAIPlatform.Application.Generation.ModelGateway;
 using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Application.Knowledge.Embeddings;
@@ -18,6 +19,7 @@ using GenAIPlatform.Infrastructure.Documents.Postgres.StorageCleanup;
 using GenAIPlatform.Infrastructure.Embeddings.Mock;
 using GenAIPlatform.Infrastructure.Embeddings.OpenAi;
 using GenAIPlatform.Infrastructure.Evaluations;
+using GenAIPlatform.Infrastructure.Evaluations.RetrievalBaseline;
 using GenAIPlatform.Infrastructure.Mcp;
 using GenAIPlatform.Infrastructure.ModelGateway.Mock;
 using GenAIPlatform.Infrastructure.ModelGateway.OpenAi;
@@ -141,6 +143,7 @@ public static class Setup
         services.AddHttpClient<OpenAiCompatibleEmbeddingClient>();
 
         services.TryAddScoped<MockEmbeddingClient>();
+        services.TryAddScoped<LexicalMockEmbeddingClient>();
         services.TryAddScoped<IEmbeddingClient>(serviceProvider =>
         {
             var options = serviceProvider
@@ -155,7 +158,7 @@ public static class Setup
 
             return providerKind switch
             {
-                ProviderKind.Mock => serviceProvider.GetRequiredService<MockEmbeddingClient>(),
+                ProviderKind.Mock => ResolveMockEmbeddingClient(serviceProvider, options),
                 ProviderKind.OpenAiCompatible => serviceProvider.GetRequiredService<OpenAiCompatibleEmbeddingClient>(),
                 _ => throw new InvalidOperationException(
                     $"Unsupported embedding provider '{options.Provider}'.")
@@ -163,6 +166,25 @@ public static class Setup
         });
 
         return services;
+    }
+
+    private static IEmbeddingClient ResolveMockEmbeddingClient(
+        IServiceProvider serviceProvider,
+        EmbeddingOptions options)
+    {
+        if (!MockEmbeddingVariantParser.TryParse(options.MockVariant, out var variant))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported mock embedding variant '{options.MockVariant}'.");
+        }
+
+        return variant switch
+        {
+            MockEmbeddingVariant.Hash => serviceProvider.GetRequiredService<MockEmbeddingClient>(),
+            MockEmbeddingVariant.Lexical => serviceProvider.GetRequiredService<LexicalMockEmbeddingClient>(),
+            _ => throw new InvalidOperationException(
+                $"Unsupported mock embedding variant '{options.MockVariant}'.")
+        };
     }
 
     private static IServiceCollection AddPersistenceAdapters(this IServiceCollection services)
@@ -195,6 +217,7 @@ public static class Setup
         services.TryAddScoped<IUsageRepository>(
             serviceProvider => serviceProvider.GetRequiredService<PostgresObservabilityRepository>());
         services.TryAddScoped<IEvaluationRunRepository, PostgresEvaluationRunRepository>();
+        services.TryAddScoped<IRetrievalBaselineCorpusStore, PostgresRetrievalBaselineCorpusStore>();
         services.TryAddScoped<IToolAuditLogRepository, PostgresToolAuditLogRepository>();
 
         return services;

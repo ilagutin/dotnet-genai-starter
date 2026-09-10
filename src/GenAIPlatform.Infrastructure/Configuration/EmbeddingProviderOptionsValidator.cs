@@ -7,9 +7,15 @@ internal sealed class EmbeddingProviderOptionsValidator : IValidateOptions<Embed
 {
     public ValidateOptionsResult Validate(string? name, EmbeddingOptions options)
     {
-        return ProviderKindParser.TryParse(options.Provider, out _)
+        if (!ProviderKindParser.TryParse(options.Provider, out _))
+        {
+            return ValidateOptionsResult.Fail(
+                $"Embedding provider '{options.Provider}' is unsupported.");
+        }
+
+        return MockEmbeddingVariantParser.TryParse(options.MockVariant, out _)
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(
-                $"Embedding provider '{options.Provider}' is unsupported.");
+                $"Mock embedding variant '{options.MockVariant}' is unsupported. Use Hash or Lexical.");
     }
 }
