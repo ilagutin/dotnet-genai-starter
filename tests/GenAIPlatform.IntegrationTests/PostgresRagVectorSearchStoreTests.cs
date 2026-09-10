@@ -493,12 +493,12 @@ public sealed partial class PostgresRagVectorSearchStoreTests(
                 id, document_id, document_version, position, text, text_hash,
                 approximate_token_count, chunking_profile, chunking_profile_version,
                 embedding_model, embedding_provider, embedding_dimensions, embedding_input_tokens,
-                embedding_values, embedding_vector, created_at_utc)
+                embedding_vector, created_at_utc)
             VALUES (
                 @id, @document_id, @document_version, @position, @text, @text_hash,
                 @approximate_token_count, @chunking_profile, @chunking_profile_version,
                 @embedding_model, @embedding_provider, @embedding_dimensions, @embedding_input_tokens,
-                @embedding_values, @embedding_vector::vector, @created_at_utc);
+                @embedding_vector::vector, @created_at_utc);
             """, connection);
         command.Parameters.AddWithValue("id", Guid.NewGuid());
         command.Parameters.AddWithValue("document_id", document.Id);
@@ -513,7 +513,6 @@ public sealed partial class PostgresRagVectorSearchStoreTests(
         command.Parameters.AddWithValue("embedding_provider", "test-provider");
         command.Parameters.AddWithValue("embedding_dimensions", embedding.Count);
         command.Parameters.AddWithValue("embedding_input_tokens", 3);
-        command.Parameters.AddWithValue("embedding_values", embedding.ToArray());
         command.Parameters.AddWithValue("embedding_vector", ToVectorText(embedding));
         command.Parameters.AddWithValue("created_at_utc", now);
         await command.ExecuteNonQueryAsync();
@@ -605,6 +604,42 @@ public sealed partial class PostgresRagVectorSearchStoreTests(
         var vector = new float[dimensions];
         vector[0] = 1f;
         return vector;
+    }
+
+    /// <summary>
+    /// Proves the dimension CHECK from 0002 still guards the surviving pgvector column after the
+    /// relational copy and its cardinality CHECK were dropped by 0007.
+    /// </summary>
+    private static async Task AssertMismatchedVectorDimensionsAreRejectedAsync(
+        string connectionString,
+        Document document)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            INSERT INTO genai.document_chunks (
+                id, document_id, document_version, position, text, text_hash,
+                approximate_token_count, chunking_profile, chunking_profile_version,
+                embedding_model, embedding_provider, embedding_dimensions, embedding_input_tokens,
+                embedding_vector, created_at_utc)
+            VALUES (
+                @id, @document_id, @document_version, 99, 'Dimension mismatch.', @text_hash,
+                3, 'test-profile', 'v-test', 'shared-model', 'shared-provider', 24, 3,
+                '[1,0]'::vector, @created_at_utc);
+            """, connection);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("document_id", document.Id);
+        command.Parameters.AddWithValue("document_version", document.Version);
+        command.Parameters.AddWithValue("text_hash", new string('f', 64));
+        command.Parameters.AddWithValue("created_at_utc", DateTimeOffset.Parse("2026-05-13T12:00:00Z"));
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(() =>
+            command.ExecuteNonQueryAsync());
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, exception.SqlState);
+        Assert.Equal(
+            "ck_document_chunks_embedding_vector_dimensions",
+            exception.ConstraintName);
     }
 
     private sealed record ChunkVectorState(

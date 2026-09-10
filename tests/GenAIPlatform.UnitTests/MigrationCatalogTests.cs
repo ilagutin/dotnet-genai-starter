@@ -85,6 +85,26 @@ public sealed class MigrationCatalogTests
         Assert.True(catalog.Scripts.Count >= LegacyV031Baseline.Checksums.Count);
     }
 
+    /// <summary>
+    /// The single-embedding-column migration is packaged after the frozen v0.3.1 baseline, so an
+    /// adopted database applies it instead of inheriting it. Dropping it from the manifest, or
+    /// slipping it in before 0006, would silently leave the duplicate column in place.
+    /// </summary>
+    [Fact]
+    public void PackagedCatalog_ContainsTheSingleEmbeddingColumnMigrationAfterTheFrozenBaseline()
+    {
+        var catalog = EmbeddedMigrationCatalogFactory.Create();
+
+        var script = catalog.Find("0007");
+
+        Assert.NotNull(script);
+        Assert.Equal("single-embedding-column", script.Name);
+        Assert.Equal("0006", LegacyV031Baseline.AdoptedThroughVersion);
+        Assert.DoesNotContain("0007", LegacyV031Baseline.Checksums.Keys);
+        Assert.Equal("0007", catalog.Scripts[LegacyV031Baseline.Checksums.Count].Version);
+        Assert.True(string.CompareOrdinal(catalog.Head, "0007") >= 0);
+    }
+
     [Fact]
     public void PackagedFingerprint_DescribesOnlyMigrationOwnedObjects()
     {

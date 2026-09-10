@@ -88,7 +88,7 @@ public sealed class PostgresSchemaMigrationTests(PostgresRepositoryFixture postg
             var result = await host.Migrator.MigrateAsync(TestContext.Current.CancellationToken);
 
             Assert.True(result.AdoptedLegacySchema);
-            Assert.Empty(result.AppliedVersions);
+            Assert.Equal(VersionsAfterTheFrozenBaseline(host), result.AppliedVersions);
             Assert.Equal(host.Catalog.Head, result.JournalHead);
             Assert.Equal(
                 freshSnapshot,
@@ -102,12 +102,18 @@ public sealed class PostgresSchemaMigrationTests(PostgresRepositoryFixture postg
             Assert.Equal(new string('3', 64), sampleValues["document_chunks.text_hash"]);
             Assert.Equal("Succeeded", sampleValues["evaluation_runs.status"]);
 
-            var journal = await SchemaMigrationTestSupport.ReadJournalAsync(connectionString);
-            Assert.All(journal, static entry => Assert.True(entry.Adopted));
-            Assert.Equal(
-                LegacyV031Baseline.Checksums.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                    .Select(static pair => pair.Value),
-                journal.Select(static entry => entry.Checksum));
+            // 0007 converged both databases on one embedding representation, and the seeded
+            // legacy chunk kept its embedding as a vector rather than being dropped.
+            Assert.False(await SchemaMigrationTestSupport.ColumnExistsAsync(
+                connectionString,
+                "document_chunks",
+                "embedding_values"));
+            Assert.Equal(0L, await SchemaMigrationTestSupport.CountUnvectorizedChunksAsync(
+                connectionString));
+
+            AssertJournalMatchesTheAdoptedBaseline(
+                host,
+                await SchemaMigrationTestSupport.ReadJournalAsync(connectionString));
         }
         finally
         {
@@ -171,14 +177,11 @@ public sealed class PostgresSchemaMigrationTests(PostgresRepositoryFixture postg
             var result = await host.Migrator.MigrateAsync(TestContext.Current.CancellationToken);
 
             Assert.True(result.AdoptedLegacySchema);
-            Assert.Empty(result.AppliedVersions);
+            Assert.Equal(VersionsAfterTheFrozenBaseline(host), result.AppliedVersions);
 
-            var journal = await SchemaMigrationTestSupport.ReadJournalAsync(connectionString);
-            Assert.All(journal, static entry => Assert.True(entry.Adopted));
-            Assert.Equal(
-                LegacyV031Baseline.Checksums.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                    .Select(static pair => pair.Value),
-                journal.Select(static entry => entry.Checksum));
+            AssertJournalMatchesTheAdoptedBaseline(
+                host,
+                await SchemaMigrationTestSupport.ReadJournalAsync(connectionString));
         }
         finally
         {
@@ -197,26 +200,23 @@ public sealed class PostgresSchemaMigrationTests(PostgresRepositoryFixture postg
             await PostgresSchemaTestHelper.ApplyLegacyV031SchemaAsync(connectionString);
             await LegacyV031SeedData.SeedAsync(connectionString);
             var seededRowCounts = await LegacyV031SeedData.ReadRowCountsAsync(connectionString);
-            var snapshotBefore =
-                await SchemaMigrationTestSupport.ReadSchemaSnapshotAsync(connectionString);
 
             using var host = new SchemaMigrationTestHost(connectionString);
             await host.CreateEmptyJournalAsync(TestContext.Current.CancellationToken);
 
             var result = await host.Migrator.MigrateAsync(TestContext.Current.CancellationToken);
 
+            // Adoption still journals the frozen baseline instead of replaying it; only the
+            // versions released after v0.3.1 are applied, and they leave the rows alone.
             Assert.True(result.AdoptedLegacySchema);
-            Assert.Empty(result.AppliedVersions);
+            Assert.Equal(VersionsAfterTheFrozenBaseline(host), result.AppliedVersions);
             Assert.Equal(host.Catalog.Head, result.JournalHead);
-            Assert.Equal(
-                snapshotBefore,
-                await SchemaMigrationTestSupport.ReadSchemaSnapshotAsync(connectionString));
             Assert.Equal(
                 seededRowCounts,
                 await LegacyV031SeedData.ReadRowCountsAsync(connectionString));
-            Assert.All(
-                await SchemaMigrationTestSupport.ReadJournalAsync(connectionString),
-                static entry => Assert.True(entry.Adopted));
+            AssertJournalMatchesTheAdoptedBaseline(
+                host,
+                await SchemaMigrationTestSupport.ReadJournalAsync(connectionString));
         }
         finally
         {
@@ -327,5 +327,37 @@ public sealed class PostgresSchemaMigrationTests(PostgresRepositoryFixture postg
         {
             await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
         }
+    }
+
+    /// <summary>
+    /// The versions an adopted v0.3.1 database still has to apply, derived from the frozen
+    /// baseline instead of hard-coded, so a later release extends the expectation on its own.
+    /// </summary>
+    private static IReadOnlyList<string> VersionsAfterTheFrozenBaseline(SchemaMigrationTestHost host)
+    {
+        return
+        [
+            .. host.Catalog.Scripts
+                .Where(static script => !LegacyV031Baseline.Checksums.ContainsKey(script.Version))
+                .Select(static script => script.Version)
+        ];
+    }
+
+    /// <summary>
+    /// An adopted journal carries the frozen checksums for the baseline versions and the packaged
+    /// checksum for everything applied after it, and only the baseline rows are marked adopted.
+    /// </summary>
+    private static void AssertJournalMatchesTheAdoptedBaseline(
+        SchemaMigrationTestHost host,
+        IReadOnlyList<MigrationJournalEntry> journal)
+    {
+        Assert.Equal(
+            host.Catalog.Scripts.Select(static script =>
+                LegacyV031Baseline.Checksums.GetValueOrDefault(script.Version, script.Checksum)),
+            journal.Select(static entry => entry.Checksum));
+        Assert.Equal(
+            host.Catalog.Scripts.Select(static script =>
+                LegacyV031Baseline.Checksums.ContainsKey(script.Version)),
+            journal.Select(static entry => entry.Adopted));
     }
 }

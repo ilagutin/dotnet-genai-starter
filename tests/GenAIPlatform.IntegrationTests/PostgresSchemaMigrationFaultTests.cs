@@ -5,7 +5,11 @@ namespace GenAIPlatform.IntegrationTests;
 [Collection(PostgresRepositoryCollection.CollectionName)]
 public sealed class PostgresSchemaMigrationFaultTests(PostgresRepositoryFixture postgres)
 {
-    private const string ProbeVersion = "0007";
+    /// <summary>
+    /// One past the packaged head, so the probe extends the real catalog instead of shadowing a
+    /// released migration. Bump it when a migration is added.
+    /// </summary>
+    private const string ProbeVersion = "0008";
     private const string ProbeTableName = "migration_probe";
 
     /// <summary>

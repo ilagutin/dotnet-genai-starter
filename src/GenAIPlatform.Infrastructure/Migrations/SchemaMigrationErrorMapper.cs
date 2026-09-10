@@ -104,15 +104,37 @@ internal sealed class SchemaMigrationErrorMapper
         return new SchemaMigrationException(message, errorCode, exception);
     }
 
+    /// <summary>
+    /// Describes a failure without echoing anything the database wrote. The one exception is
+    /// <see cref="MigrationNames.PreconditionSqlState"/>: that SQLSTATE can only come from a
+    /// <c>RAISE</c> inside a packaged migration script, so its message text is authored by this
+    /// repository and states counts and a repair instruction, never row content. Without it a
+    /// data precondition would fail with a bare error code and leave the operator no way to act.
+    /// </summary>
     public static string Describe(Exception exception)
     {
         return exception switch
         {
+            PostgresException postgres when string.Equals(
+                postgres.SqlState,
+                MigrationNames.PreconditionSqlState,
+                StringComparison.Ordinal) =>
+                $"PostgreSQL error {postgres.SqlState}: {SingleLine(postgres.MessageText)}",
             PostgresException postgres => $"PostgreSQL error {postgres.SqlState}",
             NpgsqlException => "PostgreSQL connection error",
             TimeoutException => "PostgreSQL command timeout",
             OperationCanceledException => "cancellation requested",
             _ => exception.GetType().Name
         };
+    }
+
+    /// <summary>
+    /// Keeps a surfaced precondition message on the single line the migration CLI prints.
+    /// </summary>
+    private static string SingleLine(string message)
+    {
+        return string.Join(' ', message.Split(
+            ['\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 }

@@ -7,3 +7,4 @@
 0004-evaluations.sql
 0005-tool-audit.sql
 0006-document-storage-cleanup.sql
+0007-single-embedding-column.sql

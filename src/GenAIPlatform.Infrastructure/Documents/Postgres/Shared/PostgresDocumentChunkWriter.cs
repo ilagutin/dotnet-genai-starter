@@ -6,8 +6,9 @@ namespace GenAIPlatform.Infrastructure.Documents.Postgres.Shared;
 
 /// <summary>
 /// The single place that writes a chunk row, so indexing completion and the retrieval
-/// baseline corpus always produce identical column shapes, including the pgvector column
-/// the similarity search depends on.
+/// baseline corpus always produce identical column shapes. The pgvector column is the only
+/// stored embedding representation: migration 0007 removed the duplicate <c>real[]</c> copy, so
+/// no write can leave a chunk's two representations disagreeing with each other.
 /// </summary>
 internal static class PostgresDocumentChunkWriter
 {
@@ -22,12 +23,12 @@ internal static class PostgresDocumentChunkWriter
                 id, document_id, document_version, position, text, text_hash,
                 approximate_token_count, chunking_profile, chunking_profile_version,
                 embedding_model, embedding_provider, embedding_dimensions, embedding_input_tokens,
-                embedding_values, embedding_vector, created_at_utc)
+                embedding_vector, created_at_utc)
             VALUES (
                 @id, @document_id, @document_version, @position, @text, @text_hash,
                 @approximate_token_count, @chunking_profile, @chunking_profile_version,
                 @embedding_model, @embedding_provider, @embedding_dimensions, @embedding_input_tokens,
-                @embedding_values, @embedding_vector::vector, @created_at_utc);
+                @embedding_vector::vector, @created_at_utc);
             """, connection, transaction);
         PostgresCommandParameters.Add(command, "id", chunk.Id);
         PostgresCommandParameters.Add(command, "document_id", chunk.DocumentId);
@@ -42,7 +43,6 @@ internal static class PostgresDocumentChunkWriter
         PostgresCommandParameters.Add(command, "embedding_provider", chunk.EmbeddingProvider);
         PostgresCommandParameters.Add(command, "embedding_dimensions", chunk.EmbeddingDimensions);
         PostgresCommandParameters.Add(command, "embedding_input_tokens", chunk.EmbeddingInputTokens);
-        PostgresCommandParameters.Add(command, "embedding_values", chunk.Embedding.ToArray());
         PostgresCommandParameters.Add(command, "embedding_vector", PostgresVectorParameter.From(chunk.Embedding));
         PostgresCommandParameters.Add(command, "created_at_utc", chunk.CreatedAtUtc);
         await command.ExecuteNonQueryAsync(cancellationToken);

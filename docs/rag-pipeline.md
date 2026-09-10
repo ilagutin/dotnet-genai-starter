@@ -31,7 +31,9 @@ Document upload accepts `multipart/form-data`, stores the source file through th
 
 `GenAIPlatform.Worker` claims pending jobs through the Application dispatcher, extracts text from the configured allowed extensions, chunks it with a versioned chunking profile, creates embeddings through `IEmbeddingClient` and persists chunks with embedding metadata. The default embedding provider is deterministic mock embeddings; OpenAI-compatible embeddings can be enabled through configuration.
 
-The retrieval schema keeps the relational `real[]` embedding metadata for auditability and adds a pgvector `embedding_vector` column for retrieval. Existing rows are backfilled from `embedding_values` when the `0002-pgvector-retrieval` migration is applied by `dotnet run --project src/GenAIPlatform.Migrations -- migrate`. Legacy rows with null, non-finite or zero-magnitude arrays are intentionally left with `embedding_vector = NULL` so one bad historical embedding cannot abort the schema upgrade. Those chunks are excluded from retrieval and the affected documents should be re-indexed to regenerate valid vectors. The schema uses dimension-specific partial HNSW indexes for the default mock embedding size and common 1536-dimension embeddings; other dimensions still work through exact pgvector search. The local compose stack uses `pgvector/pgvector:pg16`; deployments need a pgvector build that supports HNSW indexes.
+The retrieval schema stores one embedding representation per chunk: the pgvector `embedding_vector` column, which is `NOT NULL`. Migration `0002-pgvector-retrieval` added that column beside the original relational `real[]` copy and backfilled it; migration `0007-single-embedding-column` removed the duplicate `embedding_values` column, so a chunk can no longer carry two representations that disagree. Both are applied by `dotnet run --project src/GenAIPlatform.Migrations -- migrate`. The schema creates partial HNSW indexes for the default mock embedding size and common 1536-dimension embeddings, but the production search query does not reach them: retrieval is exact pgvector search for every dimension today, for the reasons measured below. The local compose stack uses `pgvector/pgvector:pg16`; deployments need a pgvector build that supports HNSW indexes.
+
+0002 deliberately left legacy rows with null, non-finite or zero-magnitude arrays at `embedding_vector = NULL` so that one bad historical embedding could not abort the schema upgrade. 0007 cannot do the same, because dropping the array from such a row would discard its only embedding. It therefore re-runs the 0002 backfill with the identical predicate and then fails closed in two cases: when a chunk still has no `embedding_vector`, and when a chunk's vector does not match its array. Both messages report only how many chunks and how many documents are affected, never chunk text, document ids or vectors, and both name the repair: re-index those documents to regenerate valid embeddings, or delete those chunks explicitly. The migration and its journal row commit together, so a failed run leaves the schema and the journal exactly as they were and the run can be repeated after the repair. The diagnostic query that lists the affected document ids is in the [quickstart](quickstart.md#upgrading-an-existing-database).
 
 Retrieval compares query vectors only with chunks that were embedded by the same provider and model as the query embedding. If the configured embedding provider or model changes, documents should be re-indexed before those new embeddings are expected to participate in RAG retrieval.
 
@@ -90,6 +92,58 @@ reaches model completion.
 RAG questions are rejected before retrieval if they exceed the lower of the model gateway input limit and the embedding input limit. The query sent to the embedding provider is the same validated question rendered into the prompt; the API does not silently embed only a truncated prefix.
 
 Default RAG retrieval uses the current document version and excludes older chunk versions. The default `minSimilarityScore` is `0.2`. Callers may override it between `-1` and `1`, but lower thresholds intentionally broaden retrieval. The prompt builder also enforces the lower of `GenAIPlatform:Rag:MaxContextCharacters` and the remaining rendered model input budget, including system instructions and user-message template overhead, so top-K retrieval cannot send unbounded context to the model; citations are returned only for chunks that were included in the rendered prompt context.
+
+### Measurements
+
+The retrieval query was measured once, on a bounded synthetic corpus, to find out whether the
+partial HNSW indexes the schema creates are actually used. They are not, for any of the shapes
+measured. No SQL was changed as a result, because no candidate variant was demonstrated to help
+without changing what the query returns.
+
+Setup: `pgvector/pgvector:pg16` in a throwaway container (PostgreSQL 16.13, pgvector 0.8.2),
+migrated with the packaged runner, then loaded with 400 synthetic documents and 40,000 chunks
+across 5 tenants with mixed `Private` and `TenantPublic` access: 20,000 chunks at 16 dimensions
+and 20,000 at 1536, with deterministic vectors, followed by `ANALYZE`. Settings were the image
+defaults, `hnsw.ef_search = 40`, `work_mem = 4MB`, `shared_buffers = 128MB`, plus `jit = off` and
+`plan_cache_mode = force_custom_plan` so the plan matches what Npgsql gets when it binds parameter
+values on every execution. Each scenario ran `EXPLAIN (ANALYZE, BUFFERS)` over the SQL text
+`PostgresRagSearchExecutor` builds, with the same parameter types, once as warmup and then five
+times; the table reports the median of the five. No planner setting was forced to make an index
+appear.
+
+| Scenario | Dims | Partial HNSW index used | Chunk rows scanned | Rows after join | Shared buffers | Median ms |
+|---|---|---|---|---|---|---|
+| Broad tenant scope, topK 5, minScore 0.2 | 16 | no | 20,000 | 2,800 | 1,461 hit | 20.3 |
+| Selective `documentIds` (3 documents), topK 5 | 16 | no | 300 | 300 | 42 hit | 0.4 |
+| Low-selectivity tenant, topK 50, minScore 0.0 | 16 | no | 20,000 | 2,800 | 1,461 hit | 12.5 |
+| Broad tenant scope, topK 5, minScore 0.2 | 1536 | no | 20,000 | 2,800 | 119,601 hit, 18,660 read | 189.8 |
+
+At this measured 40,000-chunk corpus, every broad-scope plan is the same: a bitmap scan of
+`ix_document_chunks_embedding_dimensions` over all chunks of that dimension, a hash join against
+the tenant's documents, and a top-N heapsort. At smaller corpora the planner may choose a
+sequential scan instead; the qualitative finding, that the HNSW index is not used, holds either
+way. The `documentIds` scenario is a nested loop through `documents_pkey` and
+`ix_document_chunks_document`, which is why it is two orders of magnitude cheaper: it never
+touches rows outside the three named documents.
+
+Two extra probes isolated the cause on the same corpus. A bare
+`SELECT ... FROM genai.document_chunks WHERE embedding_dimensions = 16 AND embedding_vector IS NOT NULL ORDER BY embedding_vector::vector(16) <=> $1 LIMIT 5`
+does use `ix_document_chunks_embedding_vector_16_hnsw`; a single measured run took 0.6 ms. Adding
+only the deterministic tie-breakers the production query orders by (`chunk.position, chunk.id`
+after the distance) is enough on its own for the planner to drop the index and fall back to the
+same bitmap scan and heapsort; that run took 10.9 ms. Those two probes were run once each, to
+identify the cause rather than to time it. The join to `genai.documents` for the tenant and access
+filters and the `(1 - distance) >= minSimilarityScore` predicate work against the index scan as
+well.
+
+So the index is functional; the query shape does not let the planner reach it. Getting it used
+would mean giving up the deterministic tie-breakers, accepting approximate top-K results, and
+restructuring the permission filter, all of which change what retrieval returns. That is a
+separate decision with its own evaluation, not a query rewrite: the measured numbers here justify
+opening it, not making it. At starter-kit corpus sizes the exact scan is well inside the latency
+the rest of a RAG request spends in the model gateway, and the 1536-dimension row is the one to
+watch, since its cost is dominated by reading 20,000 full-width vectors rather than by comparing
+them.
 
 ### Context framing
 

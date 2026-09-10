@@ -8,9 +8,17 @@ pgvector is simple, local and cost-effective. Azure AI Search is more enterprise
 
 ## pgvector Dimension-Specific Indexes
 
-The retrieval schema stores embeddings in a dimensionless pgvector column so mock and real embedding providers can coexist during the starter-kit phase. HNSW indexes require fixed dimensions, so the init scripts create partial indexes for the default 16-dimension mock embeddings and common 1536-dimension embeddings. Other dimensions still work through exact search until a deployment chooses and indexes its production embedding size.
+The retrieval schema stores embeddings in a dimensionless pgvector column so mock and real embedding providers can coexist during the starter-kit phase. HNSW indexes require fixed dimensions, so the migrations create partial indexes for the default 16-dimension mock embeddings and common 1536-dimension embeddings, but the production search query does not reach them: the deterministic tie-breakers, the tenant/permission join and the similarity-threshold predicate all keep the planner on a bitmap scan and heapsort instead, as measured in `docs/rag-pipeline.md#measurements`. Retrieval is exact pgvector search for every dimension today. Making the indexes reachable would mean giving up the deterministic tie-breakers or the exact top-K guarantee, which is a separate decision with its own evaluation, not something this starter kit has done.
 
 Retrieval still filters by embedding provider and model before ranking. Dimension-only compatibility is not enough because different embedding models can produce vectors in incompatible spaces even when their dimensions match.
+
+## One Stored Embedding Representation
+
+Until v0.3.1 a chunk stored its embedding twice: a relational `real[]` column kept for auditability, and the pgvector column search reads. The array was never read by anything except the 0002 backfill, so the second copy bought inspectability that `embedding_vector` already provides while doubling the write, doubling the storage, and creating a state nothing could detect: two columns for the same chunk that no longer agree. Migration `0007-single-embedding-column` dropped the array.
+
+The cost is paid at upgrade time rather than at run time. 0007 refuses to run on a database that still holds a chunk with no vector, or with a vector that disagrees with its array, because dropping the array from such a row would destroy the only embedding it has. That turns a class of legacy row that v0.3.1 tolerated silently into an upgrade that stops and asks for a repair. The alternative considered was dropping the array unconditionally and letting affected chunks disappear from retrieval without a signal; that trades a visible, actionable failure for silent data loss, which is the wrong way round.
+
+Nothing about search semantics changed with it. `embedding_vector` was already the only column the query reads, so the retrieval baseline in `docs/evaluations/retrieval-baseline-v1.json` reproduces every quality field unchanged across the migration.
 
 ## Hand-Rolled Migration Runner vs A Migration Library
 

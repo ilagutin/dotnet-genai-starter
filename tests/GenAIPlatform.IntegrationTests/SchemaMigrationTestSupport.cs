@@ -123,6 +123,42 @@ internal static class SchemaMigrationTestSupport
         return await command.ExecuteScalarAsync() is true;
     }
 
+    public static async Task<bool> ColumnExistsAsync(
+        string connectionString,
+        string tableName,
+        string columnName)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'genai'
+                  AND table_name = @table_name
+                  AND column_name = @column_name);
+            """, connection);
+        command.Parameters.AddWithValue("table_name", tableName);
+        command.Parameters.AddWithValue("column_name", columnName);
+
+        return await command.ExecuteScalarAsync() is true;
+    }
+
+    /// <summary>
+    /// Chunks that carry no pgvector embedding. After migration 0007 the column is NOT NULL, so
+    /// this is zero on a migrated database and a non-zero result means the migration did not run.
+    /// </summary>
+    public static async Task<long> CountUnvectorizedChunksAsync(string connectionString)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM genai.document_chunks WHERE embedding_vector IS NULL;",
+            connection);
+
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
     public static async Task<long> CountMigrationAdvisoryLocksAsync(string connectionString)
     {
         await using var connection = new NpgsqlConnection(connectionString);
