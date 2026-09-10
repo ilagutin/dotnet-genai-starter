@@ -153,9 +153,31 @@ public sealed partial class EvaluationRunHandlerTests
     [Fact]
     public async Task HandleAsync_LogsOnlyEvaluationChunksIncludedInPromptContext()
     {
-        const string includedContext = "[1] Included\nincluded evidence";
         var includedDocumentId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var excludedDocumentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var includedChunk = new RetrievedDocumentChunk(
+            includedDocumentId,
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            1,
+            0,
+            "Included",
+            "included.md",
+            "included evidence",
+            0.99);
+        var excludedChunk = new RetrievedDocumentChunk(
+            excludedDocumentId,
+            Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            1,
+            1,
+            "Excluded",
+            "excluded.md",
+            "excluded evidence",
+            0.98);
+
+        // Budget that fits exactly one framed source, framing overhead included.
+        var includedContext = new RagPromptBuilder()
+            .Build([includedChunk], maxContextCharacters: 4000)
+            .ContextText;
         var logRepository = new CapturingAiRequestLogRepository();
         var modelClient = new CapturingModelClient();
         var handler = CreateHandler(
@@ -173,27 +195,7 @@ public sealed partial class EvaluationRunHandlerTests
             logRepository: logRepository,
             vectorSearchStore: new CapturingVectorSearchStore
             {
-                Chunks =
-                [
-                    new RetrievedDocumentChunk(
-                        includedDocumentId,
-                        Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                        1,
-                        0,
-                        "Included",
-                        "included.md",
-                        "included evidence",
-                        0.99),
-                    new RetrievedDocumentChunk(
-                        excludedDocumentId,
-                        Guid.Parse("44444444-4444-4444-4444-444444444444"),
-                        1,
-                        1,
-                        "Excluded",
-                        "excluded.md",
-                        "excluded evidence",
-                        0.98)
-                ]
+                Chunks = [includedChunk, excludedChunk]
             },
             ragOptions: new RagOptions
             {
@@ -215,10 +217,14 @@ public sealed partial class EvaluationRunHandlerTests
             .Messages
             .Last(static message => message.Role == AiMessageRole.User)
             .Content;
+        Assert.Contains(includedContext, userMessage, StringComparison.Ordinal);
         Assert.Contains("included evidence", userMessage);
         Assert.DoesNotContain("excluded evidence", userMessage);
+        Assert.DoesNotContain("Excluded", userMessage, StringComparison.Ordinal);
         var retrievedDocument = Assert.Single(Assert.Single(logRepository.Entries).RetrievedDocuments);
+        Assert.Equal("1", retrievedDocument.ReferenceId);
         Assert.Equal(includedDocumentId, retrievedDocument.DocumentId);
+        Assert.Equal(includedChunk.ChunkId, retrievedDocument.ChunkId);
     }
 
     [Fact]
@@ -266,7 +272,8 @@ public sealed partial class EvaluationRunHandlerTests
         Assert.Equal("Succeeded", result.Status);
         var request = Assert.Single(modelClient.Requests);
         var userMessage = request.Messages.Last(static message => message.Role == AiMessageRole.User).Content;
-        Assert.Contains("fixture-only phrase", userMessage);
+        Assert.Contains("[1] fixture-only phrase", userMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("<source id=\"", userMessage, StringComparison.Ordinal);
         Assert.DoesNotContain("retrieval-only phrase", userMessage);
         var logEntry = Assert.Single(logRepository.Entries);
         Assert.Null(logEntry.EmbeddingTokens);

@@ -35,7 +35,7 @@ Use `rg` to confirm current file names before citing implementation details. Exp
 - `tests/GenAIPlatform.UnitTests/RagChatHandlerTests.cs`
 - `tests/GenAIPlatform.UnitTests/RagPromptBuilderTests.cs`
 - `tests/GenAIPlatform.IntegrationTests/`
-- `infra/postgres/init/`
+- `src/GenAIPlatform.Infrastructure/Migrations/Sql/`
 
 ## Out Of Scope
 

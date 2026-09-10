@@ -83,7 +83,8 @@ public sealed partial class RagChatHandlerTests
         Assert.Equal("test-model", modelClient.Request.Model);
         Assert.Equal(RagChatPrompt.TemplateName, modelClient.Request.Prompt?.TemplateName);
         Assert.Contains("How does retrieval work?", modelClient.Request.Messages[1].Content);
-        Assert.Contains("[1]", modelClient.Request.Messages[1].Content);
+        Assert.Contains("<source id=\"1\"", modelClient.Request.Messages[1].Content);
+        Assert.Contains("<source id=\"2\"", modelClient.Request.Messages[1].Content);
         Assert.Contains("Architecture notes", modelClient.Request.Messages[1].Content);
         Assert.DoesNotContain(firstChunk.DocumentId.ToString("D"), modelClient.Request.Messages[1].Content);
         Assert.DoesNotContain(firstChunk.ChunkId.ToString("D"), modelClient.Request.Messages[1].Content);

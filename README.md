@@ -18,6 +18,7 @@ flowchart LR
     Worker["GenAIPlatform.Worker"] --> Knowledge["Core + Knowledge"]
     Evaluations["GenAIPlatform.Evaluations CLI"] --> EvalModules["Core + Knowledge + Generation + Evaluations"]
     Mcp["GenAIPlatform.Mcp (local stdio host)"] --> McpModules["Core + Knowledge + Generation + Agentic + Usage"]
+    Migrations["GenAIPlatform.Migrations (one-shot host)"] --> Infrastructure
     Modules --> Domain["GenAIPlatform.Domain"]
     Knowledge --> Domain
     EvalModules --> Domain
@@ -41,7 +42,7 @@ External MCP servers are consumed separately by Infrastructure as Agentic tool s
 
 ## Current Status
 
-The `v0.3.1` reference release is a correctness, safety, build and repository-hygiene patch over `v0.3.0`; it retains the local MCP host and external MCP client support. See the [v0.3.1 release notes](docs/release-notes-v0.3.1.md) for the release detail and the documentation below for architecture and safety boundaries.
+The `v0.4.0` reference release adds verified PostgreSQL database migrations, a labeled retrieval-quality baseline and untrusted-content framing of retrieved text in RAG prompts, over `v0.3.1`; it retains the local MCP host and external MCP client support. See the [v0.4.0 release notes](docs/release-notes-v0.4.0.md) for the release detail and the documentation below for architecture and safety boundaries.
 
 The public sample path uses deterministic mock providers. OpenAI-compatible adapters are covered by loopback integration tests, while Docker-backed tests cover local persistence behavior; this repository does not publish live-provider results because they depend on private credentials and account-specific behavior.
 
@@ -72,6 +73,9 @@ Start here:
 - Safe tool execution and bounded agentic chat.
 - Local MCP host as a fourth consumption surface alongside REST, Worker and CLI.
 - Configured external MCP tools routed through the same Agentic validation, policy, request-scoped simulated approval and audit path as built-in tools.
+- Verified database migrations with a one-shot migration host.
+- Retrieval quality baseline with Recall@K, first relevant rank and no-match accuracy on a labeled synthetic dataset.
+- Untrusted-content framing of retrieved text in RAG prompts.
 - Docker Compose local development.
 - Clean/modular .NET architecture.
 
@@ -89,6 +93,7 @@ Start here:
 - [MCP host](docs/mcp.md)
 - [Observability](docs/observability.md)
 - [Local demo walkthrough](docs/local-demo.md)
+- [v0.4.0 release notes](docs/release-notes-v0.4.0.md)
 - [v0.3.1 release notes](docs/release-notes-v0.3.1.md)
 - [v0.3.0 release notes](docs/release-notes-v0.3.0.md)
 - [v0.2.0 release notes](docs/release-notes-v0.2.0.md)
@@ -122,12 +127,15 @@ src/
   GenAIPlatform.Domain
   GenAIPlatform.Infrastructure
   GenAIPlatform.Mcp
+  GenAIPlatform.Migrations
   GenAIPlatform.Worker
   GenAIPlatform.Evaluations
 tests/
   GenAIPlatform.UnitTests
   GenAIPlatform.IntegrationTests
 ```
+
+`GenAIPlatform.Migrations` is the one-shot host that applies the packaged PostgreSQL schema migrations; no other host migrates on startup.
 
 ## Quickstart
 
@@ -141,6 +149,8 @@ dotnet restore GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
 dotnet test --solution GenAIPlatform.slnx
 docker compose up -d postgres
+$env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
+dotnet run --project src/GenAIPlatform.Migrations -- migrate
 ```
 
 Run the API and Worker in separate terminals. In each terminal, start from the

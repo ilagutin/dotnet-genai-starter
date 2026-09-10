@@ -35,6 +35,7 @@ flowchart LR
     Agentic --> Domain
     EvalApp --> Domain
     Usage --> Domain
+    Migrations["GenAIPlatform.Migrations (schema migration host)"] --> Infrastructure
     Infrastructure["GenAIPlatform.Infrastructure"] --> Core
     Infrastructure --> Knowledge
     Infrastructure --> Generation
@@ -60,6 +61,7 @@ flowchart LR
 - `GenAIPlatform.Mcp`: local stdio MCP host that composes Core, Knowledge, Generation, Agentic and Usage with Infrastructure, then exposes bounded tools over existing Application use cases. It is distinct from Infrastructure's external MCP client, which supplies governed Agentic tool sources and is not a generic executor exposed through the local host.
 - `GenAIPlatform.Worker`: DB-backed background indexing jobs and orphaned document storage cleanup processing.
 - `GenAIPlatform.Evaluations`: CLI runner for evaluation workflows.
+- `GenAIPlatform.Migrations`: one-shot console host that applies the packaged schema migrations. It composes Infrastructure only, registers no Application module, and is run explicitly by an operator. Other hosts never migrate on startup; RAG retrieval and indexing job processing fail their readiness checks while the migration journal is missing or behind.
 
 ## Rules
 

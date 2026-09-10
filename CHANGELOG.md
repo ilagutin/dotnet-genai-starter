@@ -4,6 +4,69 @@
 
 No unreleased changes.
 
+## v0.4.0 - 2026-09-11
+
+This reference release adds verified PostgreSQL database migrations, a labeled
+retrieval-quality baseline and untrusted-content framing for retrieved RAG
+context, without changing its non-production framing.
+
+- Retrieved chunks are rendered inside backend-owned `<source id title file>`
+  frames with attribute escaping and neutralization of `<source`/`</source>`
+  markers found in document text; budget accounting includes framing overhead,
+  truncation never splits a surrogate pair, and Evaluations reuse the same
+  builder. Framing is not a security boundary: a model can still write a
+  bracketed citation id that has no frame, and the response `citations` array
+  lists only real frames.
+- The local stdio MCP host logs one sanitized startup warning when its
+  configured identity carries the `admin` role, which grants cross-tenant
+  usage reads; blank user or tenant identity fails startup before any hosted
+  service runs. Documentation states the host trusts its configuration file as
+  the caller identity and that per-caller remote authentication remains future
+  scope.
+- Added a labeled retrieval baseline: a lexical mock embedding variant
+  (`GenAIPlatform:Embeddings:MockVariant=Lexical`, provider `mock-lexical`; the
+  SHA-256 hash mock stays the default), an embedded dataset of 19 documents, 21
+  chunks and 34 labeled queries across relevant, distractor, paraphrase,
+  no-match, tenant-isolation, private-ownership, document-version and
+  embedding-compatibility categories, Domain-level Recall@K, first relevant
+  rank, reciprocal rank and no-match accuracy metrics, and a
+  `retrieval-baseline` CLI verb that runs in isolated `retrieval-baseline*`
+  tenants, writes a report of ids, hashes, settings and metrics only, and
+  exits nonzero on gate failure without making model-completion calls.
+- Added verified PostgreSQL database migrations: an Infrastructure-owned
+  runner with a `genai.schema_migrations` journal (SHA-256 checksums and an
+  adoption flag), `genai.schema_migration_attempts`, a session advisory lock,
+  embedded migrations `0001`-`0006` (byte-identical to the former init scripts
+  `002`-`007`), frozen v0.3.1 fingerprint adoption that only ever matches
+  exactly and fails closed on a partial or unknown schema, and the one-shot
+  `GenAIPlatform.Migrations` host (`migrate`, `status`; exit codes `0`/`1`/`2`).
+  Retrieval and indexing readiness are coupled to the journal head, and
+  `infra/postgres/init/` now keeps only `001-enable-pgvector.sql`.
+- Migration `0007-single-embedding-column` removes the duplicate
+  `embedding_values` relational array after re-running the backfill, failing
+  closed (reporting counts only) on any chunk without a vector or whose vector
+  disagrees with its array; `embedding_vector` becomes `NOT NULL` and the chunk
+  writer stops writing the array. A measured experiment (40,000 synthetic
+  chunks, PostgreSQL 16.13, pgvector 0.8.2) found that the production search
+  query never reaches the partial HNSW indexes, so retrieval is exact pgvector
+  search for every dimension today; no query was changed.
+- Documentation corrections: the retrieval-baseline frozen report's recorded
+  revision sentence, the removed `infra/postgres/init/002..007` script paths in
+  the quickstart and versioning upgrade notes, the RAG-safety-review skill's
+  in-scope schema path, and a stale "v0.2.0 host" label in the MCP
+  documentation.
+
+### Upgrade Requirement
+
+Run the migration host (`dotnet run --project src/GenAIPlatform.Migrations --
+migrate`) against the target database before starting the API, Worker or MCP
+host. `v0.3.1` is the supported source version for adoption; migration `0007`
+has a precondition that every chunk already has an `embedding_vector` (see
+`docs/quickstart.md` for the diagnostic query and repair steps). The former
+`infra/postgres/init/002..007` scripts are removed; only
+`001-enable-pgvector.sql` remains, and all other schema objects now come from
+the embedded migrations.
+
 ## v0.3.1 - 2026-09-08
 
 This correctness, safety, build and repository-hygiene patch updates the

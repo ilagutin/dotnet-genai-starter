@@ -70,6 +70,7 @@ jobs:
               src/GenAIPlatform.Evaluations/packages.lock.json | \
               src/GenAIPlatform.Infrastructure/packages.lock.json | \
               src/GenAIPlatform.Mcp/packages.lock.json | \
+              src/GenAIPlatform.Migrations/packages.lock.json | \
               src/GenAIPlatform.Worker/packages.lock.json | \
               tests/GenAIPlatform.IntegrationTests/packages.lock.json | \
               tests/GenAIPlatform.UnitTests/packages.lock.json)
@@ -151,6 +152,7 @@ jobs:
               src/GenAIPlatform.Evaluations/packages.lock.json | \
               src/GenAIPlatform.Infrastructure/packages.lock.json | \
               src/GenAIPlatform.Mcp/packages.lock.json | \
+              src/GenAIPlatform.Migrations/packages.lock.json | \
               src/GenAIPlatform.Worker/packages.lock.json | \
               tests/GenAIPlatform.IntegrationTests/packages.lock.json | \
               tests/GenAIPlatform.UnitTests/packages.lock.json)
@@ -279,6 +281,7 @@ jobs:
               src/GenAIPlatform.Evaluations/packages.lock.json | \
               src/GenAIPlatform.Infrastructure/packages.lock.json | \
               src/GenAIPlatform.Mcp/packages.lock.json | \
+              src/GenAIPlatform.Migrations/packages.lock.json | \
               src/GenAIPlatform.Worker/packages.lock.json | \
               tests/GenAIPlatform.IntegrationTests/packages.lock.json | \
               tests/GenAIPlatform.UnitTests/packages.lock.json)

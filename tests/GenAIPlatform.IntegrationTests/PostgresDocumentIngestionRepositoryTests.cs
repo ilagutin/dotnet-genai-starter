@@ -1,6 +1,7 @@
 using GenAIPlatform.Application.Knowledge.Documents;
 using GenAIPlatform.Domain.Documents;
 using GenAIPlatform.Infrastructure;
+using GenAIPlatform.Infrastructure.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -407,7 +408,7 @@ public sealed partial class PostgresDocumentIngestionRepositoryTests(
     }
 
     [DockerAvailableFact]
-    public async Task Repository_WorksAgainstSchemaCreatedFromInitScript()
+    public async Task Repository_WorksAgainstSchemaCreatedByTheMigrationRunner()
     {
         using var firstScope = await CreateRepositoryScopeAsync();
         await CleanDatabaseAsync(firstScope);
@@ -479,8 +480,8 @@ public sealed partial class PostgresDocumentIngestionRepositoryTests(
                 "alice",
                 TestContext.Current.CancellationToken);
 
-            Assert.Contains("003-pgvector-retrieval.sql", expiredException.Message);
-            Assert.Contains("003-pgvector-retrieval.sql", claimException.Message);
+            Assert.Contains(MigrationNames.MigrateCommand, expiredException.Message);
+            Assert.Contains(MigrationNames.MigrateCommand, claimException.Message);
             Assert.Equal(IndexingJobStatus.Pending.ToString(), ownership.Status);
             Assert.Equal(0, ownership.Attempts);
             Assert.Null(ownership.WorkerId);
@@ -490,9 +491,16 @@ public sealed partial class PostgresDocumentIngestionRepositoryTests(
             Assert.Equal(DocumentIndexingStatus.PendingIndexing, status.Document.IndexingStatus);
             Assert.Equal(IndexingJobStatus.Pending, status.LatestJob?.Status);
 
+            // Only the authoritative upgrade path clears the preflight: finish the frozen v0.3.1
+            // schema, then let the migration runner adopt and journal it.
             await PostgresSchemaTestHelper.ApplyInitScriptsAsync(
                 connectionString,
-                "003-pgvector-retrieval.sql");
+                "003-pgvector-retrieval.sql",
+                "004-observability-cost.sql",
+                "005-evaluations.sql",
+                "006-tool-audit.sql",
+                "007-document-storage-cleanup.sql");
+            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
 
             var claimed = await scope.Jobs.ClaimNextPendingJobAsync(
                 "worker-after-migration",
@@ -505,7 +513,7 @@ public sealed partial class PostgresDocumentIngestionRepositoryTests(
         }
         finally
         {
-            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
+            await PostgresSchemaTestHelper.RebuildSchemaAsync(connectionString);
         }
     }
 

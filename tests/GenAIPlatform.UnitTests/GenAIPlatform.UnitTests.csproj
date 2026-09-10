@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\GenAIPlatform.Application.Usage\GenAIPlatform.Application.Usage.csproj" />
     <ProjectReference Include="..\..\src\GenAIPlatform.Domain\GenAIPlatform.Domain.csproj" />
     <ProjectReference Include="..\..\src\GenAIPlatform.Infrastructure\GenAIPlatform.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\GenAIPlatform.Migrations\GenAIPlatform.Migrations.csproj" />
   </ItemGroup>
 
 </Project>

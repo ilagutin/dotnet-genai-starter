@@ -1,0 +1,10 @@
+# Ordered schema migration resources. One file name per line, lowest version first.
+# The catalog fails closed when this list has gaps or duplicates, when a listed
+# resource is missing, or when an embedded .sql resource is not listed here.
+0001-document-ingestion.sql
+0002-pgvector-retrieval.sql
+0003-observability-cost.sql
+0004-evaluations.sql
+0005-tool-audit.sql
+0006-document-storage-cleanup.sql
+0007-single-embedding-column.sql

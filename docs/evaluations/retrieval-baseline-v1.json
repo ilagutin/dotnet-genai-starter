@@ -1,0 +1,533 @@
+{
+  "datasetVersion": "retrieval-baseline-v1",
+  "datasetHash": "2c567f8bccf50bb23a09f4bc90c11e24bb98d3e1cab4fdb162416ffbf36f863b",
+  "codeRevision": "d48bd228d767054045f12af754268581d9330e5b",
+  "generatedAtUtc": "2026-09-10T23:03:19.1636654+00:00",
+  "configuration": {
+    "embeddingProvider": "mock-lexical",
+    "embeddingModel": "mock-embedding",
+    "mockVariant": "Lexical",
+    "embeddingDimensions": 1024,
+    "topK": 3,
+    "minSimilarityScore": 0.2,
+    "settingsHash": "204a7e438b140750763ae0592726c00df6749aa6328dbe94c7b90feb73aa5970"
+  },
+  "environment": {
+    "operatingSystem": "Microsoft Windows 10.0.26200",
+    "runtime": ".NET 10.0.12",
+    "postgresVersion": "16.13 (Debian 16.13-1.pgdg12\u002B1)",
+    "pgvectorVersion": "0.8.2"
+  },
+  "aggregates": {
+    "queryCount": 34,
+    "recallEligibleQueryCount": 21,
+    "recallAtK": 1,
+    "meanReciprocalRank": 1,
+    "noMatchQueryCount": 13,
+    "noMatchAccuracy": 1,
+    "queryCountsByCategory": {
+      "distractor": 4,
+      "document-version": 3,
+      "embedding-compatibility": 3,
+      "no-match": 5,
+      "paraphrase": 5,
+      "private-ownership": 3,
+      "relevant": 8,
+      "tenant-isolation": 3
+    },
+    "hitCountsByCategory": {
+      "distractor": 4,
+      "document-version": 3,
+      "embedding-compatibility": 3,
+      "no-match": 5,
+      "paraphrase": 5,
+      "private-ownership": 3,
+      "relevant": 8,
+      "tenant-isolation": 3
+    }
+  },
+  "gates": [
+    {
+      "name": "recall_at_k",
+      "threshold": 0.9,
+      "actual": 1,
+      "met": true
+    },
+    {
+      "name": "no_match_accuracy",
+      "threshold": 1,
+      "actual": 1,
+      "met": true
+    }
+  ],
+  "gatesPassed": true,
+  "queries": [
+    {
+      "queryId": "q-relevant-001",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-photosynthesis"
+      ],
+      "retrievedDocumentIds": [
+        "doc-photosynthesis",
+        "doc-cellular-respiration"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 12.1358
+    },
+    {
+      "queryId": "q-relevant-002",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-photosynthesis"
+      ],
+      "retrievedDocumentIds": [
+        "doc-photosynthesis"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 1.1694
+    },
+    {
+      "queryId": "q-relevant-003",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-tide-forecasting"
+      ],
+      "retrievedDocumentIds": [
+        "doc-tide-forecasting"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.8515
+    },
+    {
+      "queryId": "q-relevant-004",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-sourdough-starter"
+      ],
+      "retrievedDocumentIds": [
+        "doc-sourdough-starter"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7495
+    },
+    {
+      "queryId": "q-relevant-005",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-permafrost-borehole"
+      ],
+      "retrievedDocumentIds": [
+        "doc-permafrost-borehole"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6877
+    },
+    {
+      "queryId": "q-relevant-006",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-cave-survey"
+      ],
+      "retrievedDocumentIds": [
+        "doc-cave-survey"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7601
+    },
+    {
+      "queryId": "q-relevant-007",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-solar-inverter"
+      ],
+      "retrievedDocumentIds": [
+        "doc-solar-inverter"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6816
+    },
+    {
+      "queryId": "q-relevant-008",
+      "category": "relevant",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-beekeeping-hive"
+      ],
+      "retrievedDocumentIds": [
+        "doc-beekeeping-hive"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6633
+    },
+    {
+      "queryId": "q-distractor-001",
+      "category": "distractor",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-cellular-respiration"
+      ],
+      "retrievedDocumentIds": [
+        "doc-cellular-respiration",
+        "doc-photosynthesis"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6549
+    },
+    {
+      "queryId": "q-distractor-002",
+      "category": "distractor",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-buoy-telemetry"
+      ],
+      "retrievedDocumentIds": [
+        "doc-buoy-telemetry"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 7.7957
+    },
+    {
+      "queryId": "q-distractor-003",
+      "category": "distractor",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-espresso-extraction"
+      ],
+      "retrievedDocumentIds": [
+        "doc-espresso-extraction",
+        "doc-permafrost-borehole"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.828
+    },
+    {
+      "queryId": "q-distractor-004",
+      "category": "distractor",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-harbor-dredging"
+      ],
+      "retrievedDocumentIds": [
+        "doc-harbor-dredging"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7704
+    },
+    {
+      "queryId": "q-paraphrase-001",
+      "category": "paraphrase",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-photosynthesis"
+      ],
+      "retrievedDocumentIds": [
+        "doc-photosynthesis"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7489
+    },
+    {
+      "queryId": "q-paraphrase-002",
+      "category": "paraphrase",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-loom-weaving"
+      ],
+      "retrievedDocumentIds": [
+        "doc-loom-weaving"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.656
+    },
+    {
+      "queryId": "q-paraphrase-003",
+      "category": "paraphrase",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-avalanche-forecast"
+      ],
+      "retrievedDocumentIds": [
+        "doc-avalanche-forecast"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7063
+    },
+    {
+      "queryId": "q-paraphrase-004",
+      "category": "paraphrase",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-typeface-kerning"
+      ],
+      "retrievedDocumentIds": [
+        "doc-typeface-kerning"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.7032
+    },
+    {
+      "queryId": "q-paraphrase-005",
+      "category": "paraphrase",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-beekeeping-hive"
+      ],
+      "retrievedDocumentIds": [
+        "doc-beekeeping-hive"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.722
+    },
+    {
+      "queryId": "q-no-match-001",
+      "category": "no-match",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.7045
+    },
+    {
+      "queryId": "q-no-match-002",
+      "category": "no-match",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6898
+    },
+    {
+      "queryId": "q-no-match-003",
+      "category": "no-match",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6313
+    },
+    {
+      "queryId": "q-no-match-004",
+      "category": "no-match",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6198
+    },
+    {
+      "queryId": "q-no-match-005",
+      "category": "no-match",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.632
+    },
+    {
+      "queryId": "q-tenant-isolation-001",
+      "category": "tenant-isolation",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.7257
+    },
+    {
+      "queryId": "q-tenant-isolation-002",
+      "category": "tenant-isolation",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6531
+    },
+    {
+      "queryId": "q-tenant-isolation-003",
+      "category": "tenant-isolation",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-alpine-glacier"
+      ],
+      "retrievedDocumentIds": [
+        "doc-alpine-glacier"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6731
+    },
+    {
+      "queryId": "q-private-ownership-001",
+      "category": "private-ownership",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6616
+    },
+    {
+      "queryId": "q-private-ownership-002",
+      "category": "private-ownership",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6201
+    },
+    {
+      "queryId": "q-private-ownership-003",
+      "category": "private-ownership",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-basalt-quarry"
+      ],
+      "retrievedDocumentIds": [
+        "doc-basalt-quarry"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6745
+    },
+    {
+      "queryId": "q-document-version-001",
+      "category": "document-version",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-lighthouse-optics"
+      ],
+      "retrievedDocumentIds": [
+        "doc-lighthouse-optics"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.6746
+    },
+    {
+      "queryId": "q-document-version-002",
+      "category": "document-version",
+      "noMatch": false,
+      "expectedDocumentIds": [
+        "doc-lighthouse-optics"
+      ],
+      "retrievedDocumentIds": [
+        "doc-lighthouse-optics"
+      ],
+      "recallAtK": 1,
+      "firstRelevantRank": 1,
+      "hit": true,
+      "elapsedMilliseconds": 0.9091
+    },
+    {
+      "queryId": "q-document-version-003",
+      "category": "document-version",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.7577
+    },
+    {
+      "queryId": "q-embedding-compatibility-001",
+      "category": "embedding-compatibility",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6495
+    },
+    {
+      "queryId": "q-embedding-compatibility-002",
+      "category": "embedding-compatibility",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.7045
+    },
+    {
+      "queryId": "q-embedding-compatibility-003",
+      "category": "embedding-compatibility",
+      "noMatch": true,
+      "expectedDocumentIds": [],
+      "retrievedDocumentIds": [],
+      "recallAtK": null,
+      "firstRelevantRank": null,
+      "hit": true,
+      "elapsedMilliseconds": 0.6705
+    }
+  ],
+  "timings": {
+    "totalMilliseconds": 291.4683,
+    "corpusReplaceMilliseconds": 203.2604,
+    "queryMeanMilliseconds": 1.2628147058823531,
+    "queryMaxMilliseconds": 12.1358
+  }
+}

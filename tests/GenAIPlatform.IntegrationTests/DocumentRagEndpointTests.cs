@@ -314,4 +314,139 @@ public sealed partial class DocumentEndpointTests
         Assert.Equal(1, modelClient.Calls);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RagChat_FramesOnlyAccessFilteredChunkTextInTheModelPrompt(
+        bool callerOwnsThePrivateDocument)
+    {
+        using var ragFactory = CreateRagFactory(configureServices: services =>
+        {
+            services.RemoveAll<IRagVectorSearchStore>();
+            services.AddSingleton<AccessFilteredRagVectorSearchStore>();
+            services.AddSingleton<IRagVectorSearchStore>(
+                serviceProvider => serviceProvider.GetRequiredService<AccessFilteredRagVectorSearchStore>());
+        });
+        using var client = ragFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        var callerUserId = callerOwnsThePrivateDocument
+            ? AccessFilteredRagVectorSearchStore.PrivateOwnerUserId
+            : AccessFilteredRagVectorSearchStore.OtherUserId;
+        client.DefaultRequestHeaders.Add(
+            "X-Demo-Tenant-Id",
+            AccessFilteredRagVectorSearchStore.TenantId);
+        client.DefaultRequestHeaders.Add("X-Demo-User-Id", callerUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/chat/rag",
+            new
+            {
+                message = "What do the allowed notes say?"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var searchStore = ragFactory.Services.GetRequiredService<AccessFilteredRagVectorSearchStore>();
+        Assert.NotNull(searchStore.Query);
+        Assert.Equal(AccessFilteredRagVectorSearchStore.TenantId, searchStore.Query.TenantId);
+        Assert.Equal(callerUserId, searchStore.Query.UserId);
+        var modelClient = ragFactory.Services.GetRequiredService<CapturingRagModelClient>();
+        Assert.Equal(1, modelClient.Calls);
+        Assert.NotNull(modelClient.Request);
+        var userMessage = modelClient.Request.Messages
+            .Last(static message => message.Role == AiMessageRole.User)
+            .Content;
+
+        Assert.Contains(
+            "<source id=\"1\" title=\"Allowed notes\" file=\"allowed.md\">",
+            userMessage,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            AccessFilteredRagVectorSearchStore.AllowedText,
+            userMessage,
+            StringComparison.Ordinal);
+        Assert.EndsWith("</source>", userMessage.TrimEnd(), StringComparison.Ordinal);
+
+        if (callerOwnsThePrivateDocument)
+        {
+            Assert.Contains(
+                "<source id=\"2\" title=\"Private notes\" file=\"private.md\">",
+                userMessage,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                AccessFilteredRagVectorSearchStore.DeniedText,
+                userMessage,
+                StringComparison.Ordinal);
+            return;
+        }
+
+        Assert.DoesNotContain(
+            AccessFilteredRagVectorSearchStore.DeniedText,
+            userMessage,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Private notes", userMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("<source id=\"2\"", userMessage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Stands in for the permission-aware store: it holds one tenant-public chunk and one chunk
+    /// from a private document owned by <see cref="PrivateOwnerUserId" />, and applies the same
+    /// filter the PostgreSQL store applies in SQL (tenant match, then tenant-public access or
+    /// document ownership) to the tenant and user carried by the search query. Only chunks the
+    /// caller may read are returned, so denied text never reaches prompt construction.
+    /// </summary>
+    private sealed class AccessFilteredRagVectorSearchStore : IRagVectorSearchStore
+    {
+        public const string TenantId = "framing-tenant";
+        public const string PrivateOwnerUserId = "private-owner";
+        public const string OtherUserId = "other-caller";
+        public const string AllowedText = "Allowed retrieval evidence for the caller.";
+
+        /// <summary>Text of the private chunk: readable only by <see cref="PrivateOwnerUserId" />.</summary>
+        public const string DeniedText = "Denied retrieval evidence for another owner.";
+
+        private static readonly RetrievedDocumentChunk TenantPublicChunk = new(
+            Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+            Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            DocumentVersion: 1,
+            ChunkPosition: 0,
+            "Allowed notes",
+            "allowed.md",
+            AllowedText,
+            SimilarityScore: 0.94);
+
+        private static readonly RetrievedDocumentChunk PrivateChunk = new(
+            Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+            Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+            DocumentVersion: 1,
+            ChunkPosition: 0,
+            "Private notes",
+            "private.md",
+            DeniedText,
+            SimilarityScore: 0.93);
+
+        public RagVectorSearchQuery? Query { get; private set; }
+
+        public Task CheckReadinessAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<RetrievedDocumentChunk>> SearchAsync(
+            RagVectorSearchQuery query,
+            CancellationToken cancellationToken)
+        {
+            Query = query;
+            var readable = new List<RetrievedDocumentChunk>(2);
+            if (string.Equals(query.TenantId, TenantId, StringComparison.Ordinal))
+            {
+                readable.Add(TenantPublicChunk);
+                if (string.Equals(query.UserId, PrivateOwnerUserId, StringComparison.Ordinal))
+                {
+                    readable.Add(PrivateChunk);
+                }
+            }
+
+            return Task.FromResult<IReadOnlyList<RetrievedDocumentChunk>>(readable);
+        }
+    }
 }

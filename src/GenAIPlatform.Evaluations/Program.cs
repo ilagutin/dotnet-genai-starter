@@ -4,15 +4,38 @@ using GenAIPlatform.Application.Evaluations;
 using GenAIPlatform.Application.Generation;
 using GenAIPlatform.Application.Knowledge;
 using GenAIPlatform.Evaluations;
+using GenAIPlatform.Evaluations.RetrievalBaseline;
 using GenAIPlatform.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-var command = args.FirstOrDefault() ?? "run";
-if (!string.Equals(command, "run", StringComparison.OrdinalIgnoreCase))
+const int UsageExitCode = 2;
+
+var verb = args.FirstOrDefault() ?? EvaluationCliVerbs.Run;
+if (!EvaluationCliVerbs.IsKnown(verb))
 {
-    Console.Error.WriteLine("Usage: dotnet run --project src/GenAIPlatform.Evaluations -- run");
-    return 2;
+    Console.Error.WriteLine(EvaluationCliVerbs.UsageText);
+    return UsageExitCode;
+}
+
+var isRetrievalBaseline = string.Equals(
+    verb,
+    EvaluationCliVerbs.RetrievalBaseline,
+    StringComparison.OrdinalIgnoreCase);
+RetrievalBaselineCliOptions? baselineOptions = null;
+if (isRetrievalBaseline)
+{
+    var parsed = RetrievalBaselineCliOptionsParser.Parse(
+        args[1..],
+        Environment.GetEnvironmentVariable(RetrievalBaselineCliOptionsParser.RevisionEnvironmentVariable));
+    if (parsed.Options is null)
+    {
+        Console.Error.WriteLine(parsed.Error);
+        Console.Error.WriteLine(EvaluationCliVerbs.UsageText);
+        return UsageExitCode;
+    }
+
+    baselineOptions = parsed.Options;
 }
 
 var builder = EvaluationCliHost.CreateBuilder(args);
@@ -29,7 +52,14 @@ try
     using var scope = host.Services.CreateScope();
     var dispatcher = scope.ServiceProvider.GetRequiredService<IApplicationDispatcher>();
 
-    return await EvaluationCliRunner.RunAsync(dispatcher, Console.Out, CancellationToken.None);
+    return baselineOptions is null
+        ? await EvaluationCliRunner.RunAsync(dispatcher, Console.Out, CancellationToken.None)
+        : await RetrievalBaselineCliRunner.RunAsync(
+            dispatcher,
+            baselineOptions,
+            Console.Out,
+            Console.Error,
+            CancellationToken.None);
 }
 catch (InvalidOperationException exception)
     when (exception.Message.StartsWith("PostgreSQL connection string ", StringComparison.Ordinal))
@@ -53,11 +83,24 @@ public static class EvaluationCliHost
 
     private static string[] GetConfigurationArgs(string[] args)
     {
-        if (args.Length > 0 && string.Equals(args[0], "run", StringComparison.OrdinalIgnoreCase))
+        var remaining = args.Length > 0 && EvaluationCliVerbs.IsKnown(args[0])
+            ? args[1..]
+            : args;
+        var configurationArgs = new List<string>(remaining.Length);
+
+        for (var index = 0; index < remaining.Length; index++)
         {
-            return args[1..];
+            // Verb-owned options are consumed by the CLI itself and must not reach the
+            // configuration binder as unknown keys.
+            if (RetrievalBaselineCliOptionsParser.IsOwnOption(remaining[index]))
+            {
+                index++;
+                continue;
+            }
+
+            configurationArgs.Add(remaining[index]);
         }
 
-        return args;
+        return [.. configurationArgs];
     }
 }

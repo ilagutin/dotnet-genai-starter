@@ -54,7 +54,7 @@ public sealed class RagPromptBuilderTests
         var citation = Assert.Single(context.Citations);
         Assert.Equal(chunk.DocumentId, citation.DocumentId);
         Assert.Equal(chunk.ChunkId, citation.ChunkId);
-        Assert.Contains("[1]", context.ContextText);
+        Assert.Contains("<source id=\"1\"", context.ContextText);
         Assert.Contains("Secure notes", context.ContextText);
         Assert.Contains("Allowed context.", context.ContextText);
         Assert.DoesNotContain(chunk.DocumentId.ToString("D"), context.ContextText);

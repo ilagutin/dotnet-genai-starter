@@ -47,14 +47,118 @@ Start local infrastructure:
 docker compose up -d postgres
 ```
 
-The local PostgreSQL image applies the init scripts under `infra/postgres/init`
-when the Docker volume is first created, including pgvector setup, document
-ingestion, retrieval, observability/cost tracking, evaluations, tool audit
-logging and the durable document storage cleanup queue. If you are reusing an
-older local Docker volume, recreate it with `docker compose down -v` or apply
-the missing numbered SQL scripts manually. Legacy chunks with non-finite or
-zero-magnitude embedding arrays are left without `embedding_vector` and will not
-participate in retrieval; re-index those documents to regenerate valid vectors.
+The local PostgreSQL image runs `infra/postgres/init/001-enable-pgvector.sql`
+when the Docker volume is first created. That is the only privileged
+initialization step; it enables the pgvector extension and nothing else.
+
+Every table, index and constraint comes from the migration runner, which you run
+explicitly before starting any host:
+
+```powershell
+$env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
+dotnet run --project src/GenAIPlatform.Migrations -- migrate
+```
+
+`migrate` applies pending migrations and is a no-op when the database is already
+current. `status` reports the journal without changing anything. Exit codes are
+`0` (up to date or applied), `1` (behind, or the migration failed) and `2` (usage
+or configuration error). The migrations themselves are embedded in the
+Infrastructure assembly, so a published host carries its own SQL and does not
+need the checkout directory.
+
+Before adoption, `status` on an adoptable v0.3.1 database lists every migration
+version as pending, because the journal has no rows yet to compare against;
+running `migrate` against that same database adopts `0001`-`0006` in one step
+and then applies only `0007` on top of them.
+
+No host migrates on startup. While the `genai.schema_migrations` journal is
+missing or behind, RAG retrieval and indexing job processing fail their schema
+readiness checks with a message naming the migration command. That covers the
+paths that read and write the migrated tables; the health endpoint and document
+upload are not gated on the journal, so run `migrate` before you rely on a
+database rather than waiting for a request to fail.
+
+A chunk stores its embedding once, in the pgvector `embedding_vector` column.
+Migration `0007-single-embedding-column` removed the duplicate `embedding_values`
+array, and it refuses to run while any chunk would lose its only embedding; the
+next section has the check to run first and the repair.
+
+### Upgrading An Existing Database
+
+- Supported source version: `v0.3.1`, meaning a database initialized by the
+  scripts released in v0.3.1 (frozen copies under
+  `tests/GenAIPlatform.IntegrationTests/Fixtures/legacy-v0.3.1/`). The runner
+  adopts it only after an exact schema fingerprint match and then records the
+  frozen checksums in the journal.
+- A partial or otherwise unrecognized schema fails with an actionable message and
+  changes nothing. The runner never drops or alters objects to make a schema match.
+- Back up the database before migrating. Downgrade is restore from backup: there
+  are no down scripts.
+- Maintenance order: stop API, Worker, MCP and CLI consumers, take the backup, run
+  `dotnet run --project src/GenAIPlatform.Migrations -- migrate`, then start the
+  hosts again. Concurrent runners serialize on a bounded advisory lock, so a second
+  runner waits and then finds nothing to do.
+- Least privileges: the role used by the migration host needs DDL rights on schema
+  `genai` (create schema, tables and indexes). Application hosts need only DML on
+  the `genai` tables plus read access to `genai.schema_migrations` for readiness.
+
+#### Embedding Precondition Of Migration 0007
+
+`0007-single-embedding-column` drops the duplicate `embedding_values` array, so it
+refuses to run while a chunk would be left with no embedding at all. It stops with
+a message that reports how many chunks and how many documents are affected, writes
+a row to `genai.schema_migration_attempts`, and changes nothing. Run this query
+against the old database before you migrate; it lists the affected document ids and
+how many of their chunks are affected, and returns no rows when the upgrade is
+clear:
+
+```sql
+SELECT chunk.document_id, count(*) AS chunk_count
+FROM genai.document_chunks chunk
+WHERE (
+        chunk.embedding_vector IS NULL
+        AND NOT (
+            cardinality(chunk.embedding_values) = chunk.embedding_dimensions
+            AND EXISTS (
+                SELECT 1
+                FROM unnest(chunk.embedding_values) AS embedding_value(value)
+                WHERE embedding_value.value <> 0::real)
+            AND NOT EXISTS (
+                SELECT 1
+                FROM unnest(chunk.embedding_values) AS embedding_value(value)
+                WHERE embedding_value.value IS NULL
+                   OR embedding_value.value::text IN ('NaN', 'Infinity', '-Infinity'))
+        )
+      )
+   OR (
+        chunk.embedding_vector IS NOT NULL
+        AND (vector_dims(chunk.embedding_vector) <> chunk.embedding_dimensions
+             OR chunk.embedding_vector::real[] IS DISTINCT FROM chunk.embedding_values)
+      )
+GROUP BY chunk.document_id
+ORDER BY chunk_count DESC, chunk.document_id;
+```
+
+The query mirrors what the migration does: the first branch is a chunk the 0002
+backfill could not turn into a vector (wrong cardinality, or a zero-magnitude or
+non-finite array), the second is a chunk whose vector disagrees with its array.
+Those chunks are already excluded from retrieval today, so nothing that works now
+stops working. The migration checks the first branch before the second and raises
+on whichever it finds first, so repair every document this query lists in one pass
+rather than fixing the first error and re-running only to hit the second. Repair
+each listed document one of two ways, then run `migrate` again:
+
+- Re-index it, so the worker writes fresh chunks with valid embeddings. That is the
+  option to prefer: it keeps the document searchable.
+- Delete its chunks explicitly, if the document is obsolete and you accept that it
+  stays unsearchable until it is re-indexed:
+  `DELETE FROM genai.document_chunks WHERE document_id = '<id>';`
+  Delete the whole document's chunks rather than only the flagged ones: a document
+  flagged for the second branch has a chunk whose two stored copies disagree, and
+  which of them was right is not decidable from the row.
+
+Take the backup first either way. There are no down scripts, and 0007 is not
+reversible: the array copy is gone once it commits.
 
 Local document storage defaults to
 `GenAIPlatform:DocumentStorage:RootPath=storage/documents`, resolved from each
@@ -268,16 +372,17 @@ sharing it; do not fabricate real-provider evidence from mock-provider data.
 ## Demo Flow Checklist
 
 1. `docker compose up -d postgres`
-2. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the API terminal.
-3. `dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http`
-4. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the Worker terminal.
-5. `dotnet run --project src/GenAIPlatform.Worker --no-build`
-6. `GET /api/v1/health`
-7. `POST /api/v1/chat/direct`
-8. Upload [samples/documents/demo-notes.md](../samples/documents/demo-notes.md)
-9. Poll `GET /api/v1/documents/{documentId}` until `Indexed`
-10. `POST /api/v1/chat/rag`
-11. `GET /api/v1/usage`
-12. `POST /api/v1/evaluations/runs` and fetch the summary
-13. `dotnet run --project src/GenAIPlatform.Evaluations -- run`
-14. `POST /api/v1/chat/agentic`
+2. `dotnet run --project src/GenAIPlatform.Migrations -- migrate`
+3. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the API terminal.
+4. `dotnet run --project src/GenAIPlatform.Api --no-build --launch-profile http`
+5. Set `ConnectionStrings__GenAIPlatform` and the same absolute `GenAIPlatform__DocumentStorage__RootPath` in the Worker terminal.
+6. `dotnet run --project src/GenAIPlatform.Worker --no-build`
+7. `GET /api/v1/health`
+8. `POST /api/v1/chat/direct`
+9. Upload [samples/documents/demo-notes.md](../samples/documents/demo-notes.md)
+10. Poll `GET /api/v1/documents/{documentId}` until `Indexed`
+11. `POST /api/v1/chat/rag`
+12. `GET /api/v1/usage`
+13. `POST /api/v1/evaluations/runs` and fetch the summary
+14. `dotnet run --project src/GenAIPlatform.Evaluations -- run`
+15. `POST /api/v1/chat/agentic`

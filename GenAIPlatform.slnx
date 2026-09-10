@@ -11,6 +11,7 @@
     <Project Path="src/GenAIPlatform.Evaluations/GenAIPlatform.Evaluations.csproj" />
     <Project Path="src/GenAIPlatform.Infrastructure/GenAIPlatform.Infrastructure.csproj" />
     <Project Path="src/GenAIPlatform.Mcp/GenAIPlatform.Mcp.csproj" />
+    <Project Path="src/GenAIPlatform.Migrations/GenAIPlatform.Migrations.csproj" />
     <Project Path="src/GenAIPlatform.Worker/GenAIPlatform.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -1,5 +1,6 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Documents;
+using GenAIPlatform.Infrastructure.Migrations;
 
 namespace GenAIPlatform.IntegrationTests;
 
@@ -339,6 +340,79 @@ public sealed partial class PostgresRagVectorSearchStoreTests
         Assert.Equal(2, result.DocumentVersion);
     }
 
+    /// <summary>
+    /// Migration 0007 left one stored embedding representation. Search semantics did not change
+    /// with it, so the three behaviors that depend on the pgvector column alone are re-proven on
+    /// a database that no longer has the relational copy: exact search for a dimension no partial
+    /// HNSW index covers, the stored-dimension filter, and a zero-magnitude vector that must be
+    /// excluded rather than scored as NaN.
+    /// </summary>
+    [DockerAvailableFact]
+    public async Task SearchAsync_KeepsUnsupportedDimensionExactSearchAfterTheSingleEmbeddingColumnMigration()
+    {
+        using var scope = await CreateScopeAsync();
+        await CleanDatabaseAsync(scope.ConnectionString);
+
+        Assert.False(await SchemaMigrationTestSupport.ColumnExistsAsync(
+            scope.ConnectionString,
+            "document_chunks",
+            "embedding_values"));
+
+        var now = DateTimeOffset.Parse("2026-05-13T12:00:00Z");
+        var unsupportedDimensions = CreateUnitVector(dimensions: 24);
+        var compatible = await CreateIndexedDocumentAsync(
+            scope,
+            tenantId: "tenant-a",
+            ownerUserId: "alice",
+            DocumentAccessLevel.Private,
+            "Unsupported Twenty Four Dimensions",
+            unsupportedDimensions,
+            now,
+            embeddingModel: "shared-model",
+            embeddingProvider: "shared-provider");
+        var zeroMagnitude = await CreateIndexedDocumentAsync(
+            scope,
+            tenantId: "tenant-a",
+            ownerUserId: "alice",
+            DocumentAccessLevel.Private,
+            "Zero Magnitude Twenty Four Dimensions",
+            new float[24],
+            now.AddSeconds(1),
+            embeddingModel: "shared-model",
+            embeddingProvider: "shared-provider");
+        var mismatchedDimensions = await CreateIndexedDocumentAsync(
+            scope,
+            tenantId: "tenant-a",
+            ownerUserId: "alice",
+            DocumentAccessLevel.Private,
+            "Mismatched Sixteen Dimensions",
+            CreateUnitVector(dimensions: 16),
+            now.AddSeconds(2),
+            embeddingModel: "shared-model",
+            embeddingProvider: "shared-provider");
+
+        var results = await scope.VectorSearchStore.SearchAsync(
+            new RagVectorSearchQuery(
+                unsupportedDimensions,
+                "shared-model",
+                "shared-provider",
+                "tenant-a",
+                "alice",
+                TopK: 10,
+                MinSimilarityScore: 0.2,
+                DocumentIds: []),
+            TestContext.Current.CancellationToken);
+
+        var result = Assert.Single(results);
+        Assert.Equal(compatible.Id, result.DocumentId);
+        Assert.False(double.IsNaN(result.SimilarityScore));
+        Assert.DoesNotContain(results, item => item.DocumentId == zeroMagnitude.Id);
+        Assert.DoesNotContain(results, item => item.DocumentId == mismatchedDimensions.Id);
+
+        // The dimension CHECK 0002 added is still the one guarding the surviving column.
+        await AssertMismatchedVectorDimensionsAreRejectedAsync(scope.ConnectionString, compatible);
+    }
+
     [DockerAvailableFact]
     public async Task CheckReadinessAsync_RejectsLegacySchemaBeforeSearch()
     {
@@ -358,11 +432,13 @@ public sealed partial class PostgresRagVectorSearchStoreTests
 
             Assert.Equal("postgres", exception.Provider);
             Assert.Equal("retrieval_schema_error", exception.ErrorCode);
-            Assert.Equal("RAG retrieval schema is not ready.", exception.Message);
+            Assert.Equal(
+                $"RAG retrieval schema is not ready. Run `{MigrationNames.MigrateCommand}`.",
+                exception.Message);
         }
         finally
         {
-            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
+            await PostgresSchemaTestHelper.RebuildSchemaAsync(connectionString);
         }
     }
 

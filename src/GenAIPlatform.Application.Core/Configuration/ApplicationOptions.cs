@@ -8,5 +8,5 @@ public sealed class ApplicationOptions
     public string ApiVersion { get; init; } = "v1";
 
     [RequiredNonBlank]
-    public string RunnerVersion { get; init; } = "0.3.1";
+    public string RunnerVersion { get; init; } = "0.4.0";
 }

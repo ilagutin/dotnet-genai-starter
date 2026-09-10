@@ -29,7 +29,10 @@ authenticated date ranges receive 400. The HTTP errors are ProblemDetails respon
 
 MCP `get_usage` uses the same Application policy under the configured local service identity and
 maps denials to MCP errors. It does not authenticate each remote caller. These checks rely on the
-host's `IUserContext`; they do not make caller-controlled demo headers trustworthy.
+host's `IUserContext`; they do not make caller-controlled demo headers trustworthy. Because every
+client of the stdio host shares that one configured identity, an `admin` role in that configuration
+grants cross-tenant usage reads to every connected client; the host logs a startup warning when
+`admin` is configured so this is visible rather than silent.
 
 ## Retrieval Access
 
@@ -58,6 +61,8 @@ Search all documents
 -> send restricted chunks to LLM
 -> ask the LLM not to reveal them
 ```
+
+Retrieved document text is untrusted data. The prompt builder therefore owns the formatting that separates instructions from evidence: every included chunk is wrapped in a backend-generated `<source id title file>` frame, attribute values are escaped so metadata cannot close the tag, and any `<source` or `</source>` marker inside the document text is rewritten so the text cannot forge or close a frame. This only labels document text as data; it is not a security boundary and does not make the model immune to prompt injection, because the model can still follow instructions it reads inside a frame. Access filtering before prompt construction, not framing, is what keeps content the caller may not read out of the prompt. See `docs/rag-pipeline.md` for the exact format.
 
 ## Logging
 
