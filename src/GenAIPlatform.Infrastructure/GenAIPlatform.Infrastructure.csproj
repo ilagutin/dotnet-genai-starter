@@ -22,6 +22,15 @@
     <PackageReference Include="Pgvector" />
   </ItemGroup>
 
+  <!-- Migration SQL and the frozen legacy baseline ship inside the assembly so a published host
+       can migrate without the checkout directory. Logical names are explicit so a resource rename
+       is a deliberate change rather than an MSBuild naming side effect. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\Sql\migrations.manifest" LogicalName="GenAIPlatform.Infrastructure.Migrations.Sql.migrations.manifest" />
+    <EmbeddedResource Include="Migrations\Sql\*.sql" LogicalName="GenAIPlatform.Infrastructure.Migrations.Sql.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Migrations\Fingerprints\*.txt" LogicalName="GenAIPlatform.Infrastructure.Migrations.Fingerprints.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

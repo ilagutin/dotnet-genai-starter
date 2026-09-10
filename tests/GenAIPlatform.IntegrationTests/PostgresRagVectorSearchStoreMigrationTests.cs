@@ -53,7 +53,7 @@ public sealed partial class PostgresRagVectorSearchStoreTests
         }
         finally
         {
-            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
+            await PostgresSchemaTestHelper.RebuildSchemaAsync(connectionString);
         }
     }
 
@@ -142,7 +142,7 @@ public sealed partial class PostgresRagVectorSearchStoreTests
         }
         finally
         {
-            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
+            await PostgresSchemaTestHelper.RebuildSchemaAsync(connectionString);
         }
     }
 

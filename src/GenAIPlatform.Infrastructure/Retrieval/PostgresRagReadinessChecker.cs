@@ -1,10 +1,12 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
+using GenAIPlatform.Infrastructure.Migrations;
 using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Retrieval;
 
 internal sealed class PostgresRagReadinessChecker(
     PostgresRagConnectionFactory connectionFactory,
+    MigrationJournalHeadReader journalHeadReader,
     RagVectorSearchErrorMapper errorMapper)
 {
     public async Task CheckReadinessAsync(CancellationToken cancellationToken)
@@ -40,11 +42,19 @@ internal sealed class PostgresRagReadinessChecker(
                     ) AS has_embedding_vector_column;
                 """, connection);
 
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (!await reader.ReadAsync(cancellationToken) ||
-                !reader.GetBoolean(0) ||
-                !reader.GetBoolean(1) ||
-                !reader.GetBoolean(2))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                if (!await reader.ReadAsync(cancellationToken) ||
+                    !reader.GetBoolean(0) ||
+                    !reader.GetBoolean(1) ||
+                    !reader.GetBoolean(2))
+                {
+                    throw RagVectorSearchErrorMapper.SchemaNotReady();
+                }
+            }
+
+            // Retrieval must not answer from a database that a newer build has migrations for.
+            if (!await journalHeadReader.IsJournalCurrentAsync(connection, cancellationToken))
             {
                 throw RagVectorSearchErrorMapper.SchemaNotReady();
             }

@@ -1,5 +1,6 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
 using GenAIPlatform.Domain.Documents;
+using GenAIPlatform.Infrastructure.Migrations;
 
 namespace GenAIPlatform.IntegrationTests;
 
@@ -358,11 +359,13 @@ public sealed partial class PostgresRagVectorSearchStoreTests
 
             Assert.Equal("postgres", exception.Provider);
             Assert.Equal("retrieval_schema_error", exception.ErrorCode);
-            Assert.Equal("RAG retrieval schema is not ready.", exception.Message);
+            Assert.Equal(
+                $"RAG retrieval schema is not ready. Run `{MigrationNames.MigrateCommand}`.",
+                exception.Message);
         }
         finally
         {
-            await PostgresSchemaTestHelper.EnsureSchemaAsync(connectionString);
+            await PostgresSchemaTestHelper.RebuildSchemaAsync(connectionString);
         }
     }
 

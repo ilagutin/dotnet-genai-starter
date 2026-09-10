@@ -21,6 +21,7 @@ using GenAIPlatform.Infrastructure.Embeddings.OpenAi;
 using GenAIPlatform.Infrastructure.Evaluations;
 using GenAIPlatform.Infrastructure.Evaluations.RetrievalBaseline;
 using GenAIPlatform.Infrastructure.Mcp;
+using GenAIPlatform.Infrastructure.Migrations;
 using GenAIPlatform.Infrastructure.ModelGateway.Mock;
 using GenAIPlatform.Infrastructure.ModelGateway.OpenAi;
 using GenAIPlatform.Infrastructure.Observability;
@@ -47,6 +48,7 @@ public static class Setup
         services.AddObservabilityInfrastructure(configuration);
         services.AddExternalMcpInfrastructure(configuration);
         services.AddPersistenceAdapters();
+        services.AddSchemaMigrations();
         // Infrastructure supplies the background identity used by Worker hosts.
         // API foreground auth must bind IUserContext explicitly.
         services.TryAddScoped<IBackgroundUserContext, SystemUserContext>();
@@ -59,6 +61,13 @@ public static class Setup
         IConfiguration configuration)
     {
         services.Configure<PostgresOptions>(configuration.GetSection(PostgresOptions.SectionName));
+        services
+            .AddOptions<MigrationOptions>()
+            .Bind(configuration.GetSection(MigrationOptions.SectionName))
+            .Validate(
+                static options => options.IsValid(),
+                "Schema migration configuration is invalid. Configure GenAIPlatform:Migrations:LockTimeout as a positive duration and GenAIPlatform:Migrations:CommandTimeoutSeconds as a positive number of seconds.")
+            .ValidateOnStart();
         services
             .AddOptions<LocalDocumentStorageOptions>()
             .Bind(configuration.GetSection(LocalDocumentStorageOptions.SectionName))
@@ -219,6 +228,28 @@ public static class Setup
         services.TryAddScoped<IEvaluationRunRepository, PostgresEvaluationRunRepository>();
         services.TryAddScoped<IRetrievalBaselineCorpusStore, PostgresRetrievalBaselineCorpusStore>();
         services.TryAddScoped<IToolAuditLogRepository, PostgresToolAuditLogRepository>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Schema migrations are Infrastructure-owned and depend on no Application module. Hosts that
+    /// only read the database still resolve the journal reader for readiness; only the migration
+    /// host calls <see cref="ISchemaMigrator"/>.
+    /// </summary>
+    private static IServiceCollection AddSchemaMigrations(this IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IMigrationCatalog>(
+            static _ => EmbeddedMigrationCatalogFactory.Create());
+        services.TryAddSingleton<MigrationCommitObserver>();
+        services.TryAddScoped<SchemaMigrationErrorMapper>();
+        services.TryAddScoped<MigrationJournalStore>();
+        services.TryAddScoped<MigrationJournalHeadReader>();
+        services.TryAddScoped<PostgresAdvisoryLock>();
+        services.TryAddScoped<SchemaFingerprintReader>();
+        services.TryAddScoped<LegacySchemaAdopter>();
+        services.TryAddScoped<ISchemaMigrator, PostgresSchemaMigrator>();
 
         return services;
     }

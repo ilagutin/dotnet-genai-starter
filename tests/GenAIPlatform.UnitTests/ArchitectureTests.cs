@@ -72,6 +72,10 @@ public sealed class ArchitectureTests
                 "GenAIPlatform.Application.Evaluations",
                 "GenAIPlatform.Infrastructure"
             ],
+        ["GenAIPlatform.Migrations"] =
+            [
+                "GenAIPlatform.Infrastructure"
+            ],
         ["GenAIPlatform.Mcp"] =
             [
                 "GenAIPlatform.Domain",

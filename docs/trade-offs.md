@@ -12,6 +12,14 @@ The retrieval schema stores embeddings in a dimensionless pgvector column so moc
 
 Retrieval still filters by embedding provider and model before ranking. Dimension-only compatibility is not enough because different embedding models can produce vectors in incompatible spaces even when their dimensions match.
 
+## Hand-Rolled Migration Runner vs A Migration Library
+
+The schema migration runner is hand-rolled on raw Npgsql rather than built on a migration library. Two candidates were checked on NuGet on 2026-09-10. `Evolve` 3.2.0 is the latest stable release and was published 2023-06-30, with nothing since. `dbup-postgresql` 7.0.1 (2026-02-23) is maintained, but it does not re-validate the checksums of already applied scripts, has no PostgreSQL advisory lock, and pulls its own Npgsql beside the pinned 10.0.3 in `Directory.Packages.props`.
+
+This item needs checksum re-validation of applied scripts, a bounded advisory lock, a strict legacy-schema fingerprint before adoption, and failure records written outside the aborted transaction. Those behaviors would be custom code with either library, so the library would add a dependency and a second Npgsql without removing the work. A raw-Npgsql runner also matches the existing lease and job code style, which is the code a reader of this starter kit is already looking at.
+
+The cost is real: no community-maintained runner, no baseline/repair tooling, and no down scripts. Downgrade is restore from backup. If the persistence surface grows beyond a starter kit, or if EF Core is adopted for broader persistence, revisit this and prefer that ecosystem's migrations.
+
 ## Simple Prompt Templates vs Full Prompt Management
 
 Simple templates are enough for the starter-kit scope. Full prompt management may need UI, approvals, diffs, evaluation gates and rollout strategy.

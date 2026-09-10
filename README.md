@@ -122,12 +122,15 @@ src/
   GenAIPlatform.Domain
   GenAIPlatform.Infrastructure
   GenAIPlatform.Mcp
+  GenAIPlatform.Migrations
   GenAIPlatform.Worker
   GenAIPlatform.Evaluations
 tests/
   GenAIPlatform.UnitTests
   GenAIPlatform.IntegrationTests
 ```
+
+`GenAIPlatform.Migrations` is the one-shot host that applies the packaged PostgreSQL schema migrations; no other host migrates on startup.
 
 ## Quickstart
 
@@ -141,6 +144,8 @@ dotnet restore GenAIPlatform.slnx
 dotnet build GenAIPlatform.slnx
 dotnet test --solution GenAIPlatform.slnx
 docker compose up -d postgres
+$env:ConnectionStrings__GenAIPlatform = "Host=localhost;Port=5432;Database=genai_platform;Username=genai;Password=genai_dev_password"
+dotnet run --project src/GenAIPlatform.Migrations -- migrate
 ```
 
 Run the API and Worker in separate terminals. In each terminal, start from the

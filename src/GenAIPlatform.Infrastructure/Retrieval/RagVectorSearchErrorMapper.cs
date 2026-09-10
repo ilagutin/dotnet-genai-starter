@@ -1,4 +1,5 @@
 using GenAIPlatform.Application.Knowledge.Retrieval;
+using GenAIPlatform.Infrastructure.Migrations;
 using Npgsql;
 
 namespace GenAIPlatform.Infrastructure.Retrieval;
@@ -53,7 +54,7 @@ internal sealed class RagVectorSearchErrorMapper
     {
         return new RagVectorSearchException(
             PostgresRagConnectionFactory.ProviderName,
-            "RAG retrieval schema is not ready.",
+            $"RAG retrieval schema is not ready. Run `{MigrationNames.MigrateCommand}`.",
             errorCode: "retrieval_schema_error");
     }
 

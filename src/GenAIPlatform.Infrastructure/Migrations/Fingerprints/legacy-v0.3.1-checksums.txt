@@ -1,0 +1,9 @@
+# Frozen SHA-256 checksums of the v0.3.1 initialization SQL, canonicalized to LF.
+# An adopted v0.3.1 database is journalled with these checksums, so editing an already
+# released migration script surfaces as a checksum mismatch instead of silent divergence.
+0001=a29be76e7a3c6a681f0b2113313416ab837086f9ee50b8097e8784355c3bc26a
+0002=6acd3d70d19feef98aaa7e28b4b432ae6d7157eabb02e0d98f8b84c6d2c994fe
+0003=4a96f4410b86039b9f5e4d8aa0c59ea8251f958a0aadfa32264c885c2f0ab411
+0004=85a53131782252d44200021ed675d6d306510f9fe7e34d7243fc8f6e02e53393
+0005=ee8c36746daf08f9ecb3f0f5c603f124f17ce0f23cd58537193bbb2342a439db
+0006=526f2e1c9355c453f88c9f7fb3dae947bca0c64eb9dd55ff26001f7b15f9ba1f

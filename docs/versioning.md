@@ -59,7 +59,7 @@ Run the manual remediation from the Dependabot branch after reviewing its packag
 dotnet restore GenAIPlatform.slnx --force-evaluate
 git diff --name-status -- ':(glob)**/packages.lock.json'
 dotnet restore GenAIPlatform.slnx --locked-mode
-git add -- src/GenAIPlatform.Api/packages.lock.json src/GenAIPlatform.Application.Agentic/packages.lock.json src/GenAIPlatform.Application.Core/packages.lock.json src/GenAIPlatform.Application.Evaluations/packages.lock.json src/GenAIPlatform.Application.Generation/packages.lock.json src/GenAIPlatform.Application.Knowledge/packages.lock.json src/GenAIPlatform.Application.Usage/packages.lock.json src/GenAIPlatform.Domain/packages.lock.json src/GenAIPlatform.Evaluations/packages.lock.json src/GenAIPlatform.Infrastructure/packages.lock.json src/GenAIPlatform.Mcp/packages.lock.json src/GenAIPlatform.Worker/packages.lock.json tests/GenAIPlatform.IntegrationTests/packages.lock.json tests/GenAIPlatform.UnitTests/packages.lock.json
+git add -- src/GenAIPlatform.Api/packages.lock.json src/GenAIPlatform.Application.Agentic/packages.lock.json src/GenAIPlatform.Application.Core/packages.lock.json src/GenAIPlatform.Application.Evaluations/packages.lock.json src/GenAIPlatform.Application.Generation/packages.lock.json src/GenAIPlatform.Application.Knowledge/packages.lock.json src/GenAIPlatform.Application.Usage/packages.lock.json src/GenAIPlatform.Domain/packages.lock.json src/GenAIPlatform.Evaluations/packages.lock.json src/GenAIPlatform.Infrastructure/packages.lock.json src/GenAIPlatform.Mcp/packages.lock.json src/GenAIPlatform.Migrations/packages.lock.json src/GenAIPlatform.Worker/packages.lock.json tests/GenAIPlatform.IntegrationTests/packages.lock.json tests/GenAIPlatform.UnitTests/packages.lock.json
 git diff --cached --check
 git commit -m "chore(deps): update dependency lock files"
 git push
@@ -78,8 +78,18 @@ development and this repository configuration do not create or modify secrets.
 
 ## Database
 
-- Keep schema changes in source control.
-- Document ingestion and retrieval currently use explicit raw SQL/init scripts and small Npgsql adapters while the persistence surface is still stabilizing.
+- Keep schema changes in source control. Schema SQL lives in
+  `src/GenAIPlatform.Infrastructure/Migrations/Sql`, embedded into the Infrastructure assembly and listed in order by `migrations.manifest`.
+- Migrations are versioned `0001`, `0002`, ... and are applied in order by the migration host, `src/GenAIPlatform.Migrations` (`migrate` and `status` verbs). Docker initialization only enables the pgvector extension, so initialization and upgrade never diverge.
+- Applied migrations are immutable. `genai.schema_migrations` records version, name, SHA-256 checksum of the canonicalized SQL, applied timestamp, applying role, duration and whether the row came from legacy adoption. Editing a released script changes its checksum and fails the next run with a mismatch; add a new version instead.
+- Failed or uncertain attempts are recorded in `genai.schema_migration_attempts` with a sanitized failure summary, written outside the aborted transaction.
+- Migrations are written to be idempotent, and each one commits together with its journal row. If a run loses the commit acknowledgement, the next run reads the journal first and replays only versions the journal does not contain.
+- Runs serialize on a bounded PostgreSQL advisory lock. Lock timeout and caller cancellation fail without changing the journal and without leaving a session lock behind.
+- Compatibility: `v0.3.1` is the supported source version. A database built by the released `infra/postgres/init/001..007` scripts is adopted after an exact schema fingerprint match and journalled with the frozen v0.3.1 checksums; an empty database takes the fresh path. Anything else fails with a sanitized message and is left untouched.
+- The fingerprint covers the ordinary tables the migrations own in schema `genai`, their columns with formatted types and nullability, their constraint names by kind, and their index names. It excludes views, column defaults and expression text, because those render differently across PostgreSQL versions and would turn a supported upgrade into a false mismatch.
+- The fingerprint decision runs whenever the journal holds no row, whether or not the journal table exists, and creating the journal together with the adopted rows is one transaction. An interrupted first run therefore cannot leave an empty journal that a later run reads as a fresh database.
+- No host migrates on startup. RAG retrieval and indexing job processing fail their readiness checks with a message naming the migration command while the journal is missing or behind; the health endpoint and document upload are not gated on it.
+- Downgrade is restore from backup. There are no down scripts.
 - If EF Core is introduced later for broader persistence, use migrations and name them after the use case or schema change.
 
 ## Prompts
