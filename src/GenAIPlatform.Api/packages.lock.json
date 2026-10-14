@@ -4,11 +4,11 @@
     "net10.0": {
       "Microsoft.AspNetCore.OpenApi": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "7RnQ/UKn+kK3JDLmTpW+vVqNErWthGPAVAy1aIiBzv4ucQ6g9NFvOJUuT0PHcpvcJxGVxctMxj6t+NESWMrgHQ==",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "XVuqUBGjVUVyb4DXR5BrSkrW0Br7sYKq39f723ILhQLlFHCyhAgWe1PkJBc42R/5mKBIgHiKVSY+PN5/4XtcQw==",
         "dependencies": {
-          "Microsoft.OpenApi": "[2.12.0, 3.0.0)"
+          "Microsoft.OpenApi": "[2.12.2, 3.0.0)"
         }
       },
       "Microsoft.OpenApi": {
@@ -29,8 +29,8 @@
       },
       "JsonPointer.Net": {
         "type": "Transitive",
-        "resolved": "7.0.2",
-        "contentHash": "oClYHv2ooeRrtPZyC9sb/Za/ie5pGhjTbNHlAyFg4XOCyU+606FdoZKS7UdaWvtsPlrF+U2w0Ja3TRvn5+spyA==",
+        "resolved": "7.0.3",
+        "contentHash": "It/10weZ3oA+BGL+Gqyw9M6wsi4Tc16vWwU+u7x6LBwty57Y3aUh7bfcn2VWAzgVTAfGuCPb5KUpsH6IFjR08A==",
         "dependencies": {
           "Humanizer.Core": "3.0.10",
           "Json.More.Net": "3.0.1"
@@ -52,26 +52,26 @@
       "genaiplatform.application.agentic": {
         "type": "Project",
         "dependencies": {
-          "FluentValidation": "[12.1.1, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "GenAIPlatform.Application.Core": "[1.0.0, )",
           "GenAIPlatform.Application.Generation": "[1.0.0, )",
           "GenAIPlatform.Domain": "[1.0.0, )",
-          "JsonSchema.Net": "[9.4.0, )"
+          "JsonSchema.Net": "[9.4.1, )"
         }
       },
       "genaiplatform.application.core": {
         "type": "Project",
         "dependencies": {
-          "FluentValidation": "[12.1.1, )",
+          "FluentValidation": "[12.2.0, )",
           "GenAIPlatform.Domain": "[1.0.0, )"
         }
       },
       "genaiplatform.application.evaluations": {
         "type": "Project",
         "dependencies": {
-          "FluentValidation": "[12.1.1, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "GenAIPlatform.Application.Core": "[1.0.0, )",
           "GenAIPlatform.Application.Generation": "[1.0.0, )",
           "GenAIPlatform.Application.Knowledge": "[1.0.0, )",
@@ -81,8 +81,8 @@
       "genaiplatform.application.generation": {
         "type": "Project",
         "dependencies": {
-          "FluentValidation": "[12.1.1, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "GenAIPlatform.Application.Core": "[1.0.0, )",
           "GenAIPlatform.Application.Knowledge": "[1.0.0, )",
           "GenAIPlatform.Domain": "[1.0.0, )"
@@ -91,8 +91,8 @@
       "genaiplatform.application.knowledge": {
         "type": "Project",
         "dependencies": {
-          "FluentValidation": "[12.1.1, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "GenAIPlatform.Application.Core": "[1.0.0, )",
           "GenAIPlatform.Domain": "[1.0.0, )"
         }
@@ -124,26 +124,26 @@
       },
       "FluentValidation": {
         "type": "CentralTransitive",
-        "requested": "[12.1.1, )",
-        "resolved": "12.1.1",
-        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
+        "requested": "[12.2.0, )",
+        "resolved": "12.2.0",
+        "contentHash": "DR3lFbdnKucaaj1/8zMNOACMz/64igzox1yVZSFVsLxYB5mxAB+wFP1WZ8fjwrZnbU1KA1DoMzHKYKxUfuZ4wQ=="
       },
       "FluentValidation.DependencyInjectionExtensions": {
         "type": "CentralTransitive",
-        "requested": "[12.1.1, )",
-        "resolved": "12.1.1",
-        "contentHash": "D0VXh4dtjjX2aQizuaa0g6R8X3U1JaVqJPfGCvLwZX9t/O2h7tkpbitbadQMfwcgSPdDbI2vDxuwRMv/Uf9dHA==",
+        "requested": "[12.2.0, )",
+        "resolved": "12.2.0",
+        "contentHash": "QpKXgiO9E6wXCh19X2Musn8MZM0xt7KQt/QrD6GDBn3MCUfy8a+rkhCzrYJNCfoxTsTRQ7bpKP8T3geTnJNNeQ==",
         "dependencies": {
-          "FluentValidation": "12.1.1"
+          "FluentValidation": "12.2.0"
         }
       },
       "JsonSchema.Net": {
         "type": "CentralTransitive",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "muE4nPuzbD9x5XA1mkXJNqX4mhz47oF3EY8qFLY1pyUY7lhXFKq65t/dSKIHeNSLBV17zwZuq24MD1em90rMNg==",
+        "requested": "[9.4.1, )",
+        "resolved": "9.4.1",
+        "contentHash": "7Nh0XyIse3a5nsc1nJJTECZVjxqHVE5jANGEPpQc2H+/M7u2sLueL93X6ZUuJLkLYy/pYzFmJhKYEpVIctaUZw==",
         "dependencies": {
-          "JsonPointer.Net": "7.0.2"
+          "JsonPointer.Net": "7.0.3"
         }
       },
       "ModelContextProtocol": {
