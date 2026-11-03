@@ -20,11 +20,11 @@
       },
       "JsonSchema.Net": {
         "type": "Direct",
-        "requested": "[9.5.0, )",
-        "resolved": "9.5.0",
-        "contentHash": "yCohYtv0mi0oU+n3rpPBhoP/6OKkmxxwkGfprohst5DywbKoHaf9yJtFR8CYasKUUO5KfIR3gm43vsqxgT0nzA==",
+        "requested": "[9.6.0, )",
+        "resolved": "9.6.0",
+        "contentHash": "bwHvTUy4gsSfMwncWT4w1OeKiZJ/yw0W1mtQq4iO6vVJdX/8xj+5Kf6q180C6yDPlRm3PS9UXTB/MecXAkdEVw==",
         "dependencies": {
-          "JsonPointer.Net": "7.0.3"
+          "JsonPointer.Net": "7.0.4"
         }
       },
       "Microsoft.Extensions.Configuration.Abstractions": {
@@ -76,8 +76,8 @@
       },
       "JsonPointer.Net": {
         "type": "Transitive",
-        "resolved": "7.0.3",
-        "contentHash": "It/10weZ3oA+BGL+Gqyw9M6wsi4Tc16vWwU+u7x6LBwty57Y3aUh7bfcn2VWAzgVTAfGuCPb5KUpsH6IFjR08A==",
+        "resolved": "7.0.4",
+        "contentHash": "HjP+Y8HxtbMMcLgci0/iR+UQ3dDQifS6TFZgXxO2ilqHQ97DjhdCFNMcbxN+68XqzxDmyIPvU+rn2TJQl1vc5A==",
         "dependencies": {
           "Humanizer.Core": "3.0.10",
           "Json.More.Net": "3.0.1"

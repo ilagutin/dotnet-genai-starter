@@ -68,13 +68,13 @@
       },
       "ModelContextProtocol": {
         "type": "Direct",
-        "requested": "[2.3.0, )",
-        "resolved": "2.3.0",
-        "contentHash": "PHZ0q8xTAoysqUKpA5gC0RGJSfwpZhfsNz+9Sw0X0RzFFVHjIE52sx6C+ogMn+LSE+FfiYiNscPJhM6q6DMT6Q==",
+        "requested": "[2.3.1, )",
+        "resolved": "2.3.1",
+        "contentHash": "r93TE8VAvPIJrvoMPpWhKWcMLvKIPB72JozRye3hHeY7gCsMXYo/3fLVnzNEnjBcXmV8+EXcNMYzC/+0wRkidA==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "10.0.13",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.13",
-          "ModelContextProtocol.Core": "[2.3.0]"
+          "ModelContextProtocol.Core": "[2.3.1]"
         }
       },
       "Npgsql": {
@@ -107,8 +107,8 @@
       },
       "JsonPointer.Net": {
         "type": "Transitive",
-        "resolved": "7.0.3",
-        "contentHash": "It/10weZ3oA+BGL+Gqyw9M6wsi4Tc16vWwU+u7x6LBwty57Y3aUh7bfcn2VWAzgVTAfGuCPb5KUpsH6IFjR08A==",
+        "resolved": "7.0.4",
+        "contentHash": "HjP+Y8HxtbMMcLgci0/iR+UQ3dDQifS6TFZgXxO2ilqHQ97DjhdCFNMcbxN+68XqzxDmyIPvU+rn2TJQl1vc5A==",
         "dependencies": {
           "Humanizer.Core": "3.0.10",
           "Json.More.Net": "3.0.1"
@@ -188,8 +188,8 @@
       },
       "ModelContextProtocol.Core": {
         "type": "Transitive",
-        "resolved": "2.3.0",
-        "contentHash": "EDpbQholhVWoNumb0Ab3oGv9LmXOLgaD5ixEIUkrnzpnqD0TJCSHTJ5G71/J1KlrQ98aWDclWTPMffKTnCJoMw==",
+        "resolved": "2.3.1",
+        "contentHash": "cuYIbAWWhVSY0PRaz0LiDoxxnpLdps1tKXjo2LN91CObgWBFcKg3Ebz4kF95O++2Do7GXI2Tl5KQOYM8UoAyZA==",
         "dependencies": {
           "Microsoft.Extensions.AI.Abstractions": "10.11.0",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.13"
@@ -203,7 +203,7 @@
           "GenAIPlatform.Application.Core": "[1.0.0, )",
           "GenAIPlatform.Application.Generation": "[1.0.0, )",
           "GenAIPlatform.Domain": "[1.0.0, )",
-          "JsonSchema.Net": "[9.5.0, )",
+          "JsonSchema.Net": "[9.6.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
@@ -293,11 +293,11 @@
       },
       "JsonSchema.Net": {
         "type": "CentralTransitive",
-        "requested": "[9.5.0, )",
-        "resolved": "9.5.0",
-        "contentHash": "yCohYtv0mi0oU+n3rpPBhoP/6OKkmxxwkGfprohst5DywbKoHaf9yJtFR8CYasKUUO5KfIR3gm43vsqxgT0nzA==",
+        "requested": "[9.6.0, )",
+        "resolved": "9.6.0",
+        "contentHash": "bwHvTUy4gsSfMwncWT4w1OeKiZJ/yw0W1mtQq4iO6vVJdX/8xj+5Kf6q180C6yDPlRm3PS9UXTB/MecXAkdEVw==",
         "dependencies": {
-          "JsonPointer.Net": "7.0.3"
+          "JsonPointer.Net": "7.0.4"
         }
       },
       "Microsoft.Extensions.Logging": {
